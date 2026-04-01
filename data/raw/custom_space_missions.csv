@@ -1,0 +1,16 @@
+mission_id,mission_name,space_agency,launch_year,destination,mission_type,budget_millions,duration_days,status
+M001,Artemis I,NASA,2022,Moon,Crewed,93000,25,Success
+M002,JWST,NASA,2021,L2 Orbit,Observatory,10000,365,Active
+M003,Perseverance,NASA,2020,Mars,Rover,2700,687,Active
+M004,Chandrayaan-3,ISRO,2023,Moon,Lander,74,14,Success
+M005,Psyche,NASA,2023,Asteroid Belt,Orbiter,1200,1825,Active
+M006,Aditya-L1,ISRO,2023,Sun L1,Observatory,48,180,Active
+M007,Europa Clipper,NASA,2024,Europa,Orbiter,5000,3650,Active
+M008,Hera,ESA,2024,Didymos,Orbiter,300,730,Active
+M009,Lunar Gateway,NASA,2025,Moon,Station,3000,4380,Planned
+M010,Mars Sample Return,NASA,2028,Mars,Sample Return,7000,2500,Planned
+M011,BepiColombo,ESA,2018,Mercury,Orbiter,1700,3650,Active
+M012,JUICE,ESA,2023,Jupiter,Orbiter,1600,3650,Active
+M013,Tianwen-1,CNSA,2020,Mars,Orbiter,450,687,Success
+M014,Hope,UAESA,2021,Mars,Orbiter,200,687,Active
+M015,DART,NASA,2021,Dimorphos,Impactor,330,301,Success

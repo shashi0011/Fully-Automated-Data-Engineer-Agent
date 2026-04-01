@@ -1,0 +1,2219 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { LogOut } from "lucide-react";
+import { 
+  Zap, 
+  Bot, 
+  GitBranch, 
+  Database, 
+  FileText, 
+  FolderOpen,
+  BarChart3,
+  Home,
+  Menu,
+  X,
+  Moon,
+  Sun,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
+  ArrowRight,
+  Play,
+  Shield,
+  Cpu,
+  Workflow,
+  Upload,
+  Table,
+  Layers,
+  Info,
+  Cloud,
+  FileSpreadsheet,
+  Code,
+  RefreshCw,
+  Download,
+  Search
+} from "lucide-react";
+import { useTheme } from "next-themes";
+import { AuthDialog } from "@/components/auth-dialog";
+import { useAuthStore } from "@/lib/auth-store";
+import { CommandBox } from "@/components/dataforge/command-box";
+import { FileCard, FileCardSkeleton } from "@/components/dataforge/file-card";
+import { QueryBox } from "@/components/dataforge/query-box";
+import { FileExplorer } from "@/components/dataforge/file-explorer";
+import { PipelineDAG } from "@/components/dataforge/pipeline-dag";
+import { StatsCards } from "@/components/dataforge/stats-cards";
+
+// Types
+interface ExecutionResult {
+  status: string;
+  command: string;
+  files: string[];
+  logs: string[];
+  duration?: number;
+}
+
+interface FileItem {
+  name: string;
+  path: string;
+  type: string;
+  category: string;
+  size: number;
+  content?: string;
+  modified?: string;
+}
+
+interface QueryResult {
+  sql: string;
+  columns: string[];
+  data: Record<string, unknown>[];
+  row_count: number;
+  execution_time?: number;
+  schema_info?: SchemaInfo;
+  explanation?: string;
+  generated_by?: string;
+}
+
+interface SchemaInfo {
+  table: string;
+  dataset_type: string;
+  columns: Record<string, ColumnInfo>;
+  suggested_queries?: string[];
+}
+
+interface ColumnInfo {
+  type: string;
+  semantic: string;
+  sample_values?: unknown[];
+  unique_count?: number;
+}
+
+interface DashboardStats {
+  total_pipelines: number;
+  total_executions: number;
+  success_rate: number;
+  tables: number;
+  reports: number;
+  data_volume: number;
+  dataset_type?: string;
+  current_table?: string;
+  features?: {
+    llm_enabled: boolean;
+    xlsx_support: boolean;
+    airbyte_connected: boolean;
+  };
+}
+
+interface ChartData {
+  pipeline_runs: Array<{ date: string; runs: number; success: number }>;
+  primary_chart: Array<{ category: string; value: number }>;
+  secondary_chart: Array<{ category: string; value: number }>;
+  trend_chart: Array<{ period: string; value: number }>;
+}
+
+interface LLMAnalysis {
+  dataset_type: string;
+  dataset_subtype?: string;
+  confidence_score?: number;
+  column_analysis?: Record<string, {
+    semantic_type: string;
+    business_meaning: string;
+    data_quality: string;
+    issues: string[];
+    recommendations: string[];
+  }>;
+  data_quality_summary?: {
+    overall_score: number;
+    issues: string[];
+    recommendations: string[];
+  };
+  recommended_transformations?: Array<{
+    type: string;
+    description: string;
+    sql_template: string;
+  }>;
+  suggested_metrics?: Array<{
+    name: string;
+    description: string;
+    formula: string;
+    business_value: string;
+  }>;
+  visualization_recommendations?: Array<{
+    type: string;
+    columns: string[];
+    purpose: string;
+  }>;
+  natural_language_insights?: string[];
+}
+
+interface AirbyteSource {
+  sourceId: string;
+  name: string;
+  sourceDefinitionId: string;
+  connectionConfiguration?: Record<string, unknown>;
+}
+
+interface AirbyteConnection {
+  connectionId: string;
+  name: string;
+  sourceId: string;
+  destinationId: string;
+  status: string;
+}
+
+interface AirbyteSourceDefinition {
+  sourceDefinitionId: string;
+  name: string;
+  sourceType?: string;
+}
+
+// Schema Display Component
+function SchemaDisplay({ schema }: { schema: SchemaInfo | null }) {
+  if (!schema) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground text-center">
+            No dataset loaded. Upload a CSV, JSON, or XLSX file to get started.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const datasetTypeColors: Record<string, string> = {
+    sales: "bg-green-500/10 text-green-600",
+    news: "bg-blue-500/10 text-blue-600",
+    medical: "bg-red-500/10 text-red-600",
+    finance: "bg-yellow-500/10 text-yellow-600",
+    hr: "bg-purple-500/10 text-purple-600",
+    iot: "bg-cyan-500/10 text-cyan-600",
+    generic: "bg-gray-500/10 text-gray-600"
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Dataset Type Badge */}
+      <div className="flex items-center gap-2">
+        <Badge className={datasetTypeColors[schema.dataset_type] || datasetTypeColors.generic}>
+          {schema.dataset_type.toUpperCase()}
+        </Badge>
+        <span className="text-sm text-muted-foreground">
+          Table: {schema.table}
+        </span>
+      </div>
+
+      {/* Columns Grid */}
+      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+        {Object.entries(schema.columns).map(([colName, colInfo]) => (
+          <Card key={colName} className="p-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="font-medium text-sm">{colName}</p>
+                <p className="text-xs text-muted-foreground">{colInfo.semantic}</p>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {colInfo.type}
+              </Badge>
+            </div>
+            {colInfo.sample_values && colInfo.sample_values.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-2 truncate">
+                Example: {String(colInfo.sample_values[0])}
+              </p>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      {/* Suggested Queries */}
+      {schema.suggested_queries && schema.suggested_queries.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="h-4 w-4 text-violet-500" />
+            <p className="text-sm font-medium">Suggested Queries</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {schema.suggested_queries.map((query, i) => (
+              <Badge key={i} variant="secondary" className="cursor-pointer hover:bg-secondary/80">
+                {query}
+              </Badge>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// LLM Analysis Display Component
+function LLMAnalysisDisplay({ analysis, isLoading }: { analysis: LLMAnalysis | null; isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500 mr-2" />
+          <span>AI is analyzing your dataset...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <Bot className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground text-center mb-4">
+            Click &quot;Analyze with AI&quot; to get intelligent insights about your dataset
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Dataset Type & Confidence */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">Detected Type</p>
+            <p className="text-xl font-bold capitalize">{analysis.dataset_type}</p>
+          </div>
+          {analysis.confidence_score && (
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Confidence</p>
+              <p className="text-xl font-bold">{Math.round(analysis.confidence_score * 100)}%</p>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Natural Language Insights */}
+      {analysis.natural_language_insights && analysis.natural_language_insights.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              AI Insights
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {analysis.natural_language_insights.map((insight, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                  {insight}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recommended Transformations */}
+      {analysis.recommended_transformations && analysis.recommended_transformations.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Workflow className="h-4 w-4 text-blue-500" />
+              Recommended Transformations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {analysis.recommended_transformations.map((transform, i) => (
+                <div key={i} className="border rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline">{transform.type}</Badge>
+                    <span className="text-sm font-medium">{transform.description}</span>
+                  </div>
+                  <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                    {transform.sql_template}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Suggested Metrics */}
+      {analysis.suggested_metrics && analysis.suggested_metrics.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-green-500" />
+              Suggested Metrics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 md:grid-cols-2">
+              {analysis.suggested_metrics.map((metric, i) => (
+                <div key={i} className="border rounded-lg p-3">
+                  <p className="font-medium text-sm">{metric.name}</p>
+                  <p className="text-xs text-muted-foreground">{metric.description}</p>
+                  <p className="text-xs mt-1"><strong>Formula:</strong> {metric.formula}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Data Quality */}
+      {analysis.data_quality_summary && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="h-4 w-4 text-orange-500" />
+              Data Quality Score: {Math.round(analysis.data_quality_summary.overall_score * 100)}%
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analysis.data_quality_summary.issues.length > 0 && (
+              <div className="mb-3">
+                <p className="text-sm font-medium mb-1">Issues:</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  {analysis.data_quality_summary.issues.map((issue, i) => (
+                    <li key={i}>• {issue}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {analysis.data_quality_summary.recommendations.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-1">Recommendations:</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  {analysis.data_quality_summary.recommendations.map((rec, i) => (
+                    <li key={i}>• {rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Airbyte Connector Manager Component
+function AirbyteConnectorManager() {
+  const [sourceDefinitions, setSourceDefinitions] = useState<AirbyteSourceDefinition[]>([]);
+  const [sources, setSources] = useState<AirbyteSource[]>([]);
+  const [connections, setConnections] = useState<AirbyteConnection[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedSourceType, setSelectedSourceType] = useState<string>("");
+  const [connectionConfig, setConnectionConfig] = useState<Record<string, string>>({});
+  const [sourceName, setSourceName] = useState("");
+
+  useEffect(() => {
+    fetchSourceDefinitions();
+    fetchSources();
+    fetchConnections();
+  }, []);
+
+  const fetchSourceDefinitions = async () => {
+    try {
+      const response = await fetch("/api/airbyte/source-definitions");
+      const data = await response.json();
+      setSourceDefinitions(data.source_definitions || []);
+    } catch (error) {
+      console.error("Failed to fetch source definitions:", error);
+    }
+  };
+
+  const fetchSources = async () => {
+    try {
+      const response = await fetch("/api/airbyte/sources");
+      const data = await response.json();
+      setSources(data.sources || []);
+    } catch (error) {
+      console.error("Failed to fetch sources:", error);
+    }
+  };
+
+  const fetchConnections = async () => {
+    try {
+      const response = await fetch("/api/airbyte/connections");
+      const data = await response.json();
+      setConnections(data.connections || []);
+    } catch (error) {
+      console.error("Failed to fetch connections:", error);
+    }
+  };
+
+  const fetchTemplate = async (sourceType: string) => {
+    try {
+      const response = await fetch(`/api/airbyte/templates/${sourceType}`);
+      const data = await response.json();
+      setConnectionConfig(data.template || {});
+    } catch (error) {
+      console.error("Failed to fetch template:", error);
+    }
+  };
+
+  const handleSourceTypeChange = (value: string) => {
+    setSelectedSourceType(value);
+    fetchTemplate(value);
+  };
+
+  const handleCreateSource = async () => {
+    if (!sourceName || !selectedSourceType) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/airbyte/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: sourceName,
+          source_type: selectedSourceType,
+          connection_config: connectionConfig
+        })
+      });
+      
+      if (response.ok) {
+        fetchSources();
+        setSourceName("");
+        setConnectionConfig({});
+      }
+    } catch (error) {
+      console.error("Failed to create source:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSync = async (connectionId: string) => {
+    try {
+      await fetch(`/api/airbyte/connections/${connectionId}/sync`, {
+        method: "POST"
+      });
+    } catch (error) {
+      console.error("Failed to trigger sync:", error);
+    }
+  };
+
+  const popularConnectors = [
+    { id: "postgres", name: "PostgreSQL", icon: "🐘" },
+    { id: "mysql", name: "MySQL", icon: "🐬" },
+    { id: "mongodb", name: "MongoDB", icon: "🍃" },
+    { id: "s3", name: "Amazon S3", icon: "🪣" },
+    { id: "bigquery", name: "BigQuery", icon: "📊" },
+    { id: "salesforce", name: "Salesforce", icon: "☁️" },
+    { id: "stripe", name: "Stripe", icon: "💳" },
+    { id: "google_sheets", name: "Google Sheets", icon: "📋" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Popular Connectors */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Cloud className="h-5 w-5 text-blue-500" />
+            Connect Data Sources
+          </CardTitle>
+          <CardDescription>
+            Connect to 300+ data sources via Airbyte
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-4">
+            {popularConnectors.map((connector) => (
+              <Card 
+                key={connector.id}
+                className="cursor-pointer hover:border-primary/50 transition-colors p-4"
+                onClick={() => {
+                  setSelectedSourceType(connector.id);
+                  fetchTemplate(connector.id);
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{connector.icon}</span>
+                  <span className="font-medium">{connector.name}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create Source Form */}
+      {selectedSourceType && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Configure {selectedSourceType.toUpperCase()} Source</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="sourceName">Source Name</Label>
+              <Input
+                id="sourceName"
+                value={sourceName}
+                onChange={(e) => setSourceName(e.target.value)}
+                placeholder="My Data Source"
+              />
+            </div>
+            
+            {Object.keys(connectionConfig).length > 0 && (
+              <div className="space-y-3">
+                <Label>Connection Details</Label>
+                {Object.entries(connectionConfig).map(([key, value]) => (
+                  <div key={key}>
+                    <Label htmlFor={key} className="text-xs">{key}</Label>
+                    <Input
+                      id={key}
+                      value={connectionConfig[key] || ""}
+                      onChange={(e) => setConnectionConfig({
+                        ...connectionConfig,
+                        [key]: e.target.value
+                      })}
+                      placeholder={String(value)}
+                      type={key.includes("password") || key.includes("secret") ? "password" : "text"}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <Button onClick={handleCreateSource} disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create Source
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Existing Sources */}
+      {sources.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Configured Sources</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {sources.map((source) => (
+                <div key={source.sourceId} className="flex items-center justify-between border rounded-lg p-3">
+                  <div>
+                    <p className="font-medium">{source.name}</p>
+                    <p className="text-xs text-muted-foreground">{source.sourceDefinitionId}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline">Test</Button>
+                    <Button size="sm" variant="destructive">Delete</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Connections */}
+      {connections.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Active Connections</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {connections.map((conn) => (
+                <div key={conn.connectionId} className="flex items-center justify-between border rounded-lg p-3">
+                  <div>
+                    <p className="font-medium">{conn.name}</p>
+                    <Badge variant={conn.status === "active" ? "default" : "secondary"}>
+                      {conn.status}
+                    </Badge>
+                  </div>
+                  <Button size="sm" onClick={() => handleSync(conn.connectionId)}>
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Sync
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// DBT Models Display Component
+function DBTModelsDisplay({ models, isLoading }: { models: Array<{ path: string; content: string; description: string }> | null; isLoading: boolean }) {
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500 mr-2" />
+          <span>AI is generating dbt models...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!models || models.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <Code className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground text-center mb-4">
+            Click &quot;Generate dbt Models&quot; to create transformation models
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const currentModel = models.find(m => m.path === selectedModel) || models[0];
+
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {/* Model List */}
+      <Card className="md:col-span-1">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Generated Models</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {models.map((model) => (
+              <div
+                key={model.path}
+                className={`p-2 rounded cursor-pointer border ${
+                  selectedModel === model.path ? "border-primary bg-primary/5" : "hover:border-muted"
+                }`}
+                onClick={() => setSelectedModel(model.path)}
+              >
+                <p className="text-sm font-medium truncate">{model.path}</p>
+                <p className="text-xs text-muted-foreground truncate">{model.description}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Model Content */}
+      <Card className="md:col-span-2">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">{currentModel?.path}</CardTitle>
+            <Button size="sm" variant="outline">
+              <Download className="h-4 w-4 mr-1" />
+              Download
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto max-h-96">
+            {currentModel?.content}
+          </pre>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// File Upload Component (Enhanced with XLSX support)
+function FileUploader({ onUploadComplete }: { onUploadComplete: () => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleUpload = async (file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['csv', 'json', 'xlsx', 'xls', 'xlsm'].includes(ext || '')) {
+      alert('Please upload a CSV, JSON, or Excel file');
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        onUploadComplete();
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  return (
+    <Card 
+      className={`border-dashed ${dragActive ? 'border-primary bg-primary/5' : ''}`}
+      onDragEnter={() => setDragActive(true)}
+      onDragLeave={() => setDragActive(false)}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+    >
+      <CardContent className="flex flex-col items-center justify-center py-8">
+        {uploading ? (
+          <>
+            <Loader2 className="h-12 w-12 text-muted-foreground animate-spin mb-4" />
+            <p className="text-muted-foreground">Uploading and processing...</p>
+          </>
+        ) : (
+          <>
+            <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground text-center mb-2">
+              Drag & drop your <strong>CSV, JSON, or Excel</strong> file here
+            </p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Supports .csv, .json, .xlsx, .xls files
+            </p>
+            <label>
+              <input
+                type="file"
+                accept=".csv,.json,.xlsx,.xls,.xlsm"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+              />
+              <Button variant="outline" asChild>
+                <span>Browse Files</span>
+              </Button>
+            </label>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Sample Datasets Component
+function SampleDatasets({ onSelect }: { onSelect: (filename: string) => void }) {
+  const samples = [
+    { name: 'news_articles.csv', type: 'News', icon: '📰', description: '25 news articles with engagement metrics' },
+    { name: 'medical_records.csv', type: 'Medical', icon: '🏥', description: '25 patient records with treatments' },
+    { name: 'finance_stocks.csv', type: 'Finance', icon: '📈', description: '30 stock records with market data' },
+    { name: 'sales.csv', type: 'Sales', icon: '🛒', description: 'Sample sales transaction data' },
+  ];
+
+  const loadSample = async (filename: string) => {
+    try {
+      const response = await fetch(`/api/load-sample?file=${filename}`, {
+        method: 'POST'
+      });
+      const result = await response.json();
+      if (result.status === 'success') {
+        onSelect(filename);
+      }
+    } catch (error) {
+      console.error('Failed to load sample:', error);
+    }
+  };
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {samples.map((sample) => (
+        <Card 
+          key={sample.name} 
+          className="cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => loadSample(sample.name)}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <span className="text-2xl">{sample.icon}</span>
+            <div className="flex-1">
+              <p className="font-medium">{sample.name}</p>
+              <p className="text-sm text-muted-foreground">{sample.description}</p>
+            </div>
+            <Badge variant="outline">{sample.type}</Badge>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// Warehouse View Component
+function WarehouseView() {
+  const [warehouseInfo, setWarehouseInfo] = useState<{
+    tables: string[];
+    count: number;
+    data_volume?: number;
+  } | null>(null);
+  const [schemaCache, setSchemaCache] = useState<SchemaInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchWarehouseInfo();
+    fetchSchemaCache();
+  }, []);
+
+  const fetchWarehouseInfo = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/warehouse");
+      const data = await response.json();
+      setWarehouseInfo(data);
+    } catch (error) {
+      console.error("Failed to fetch warehouse info:", error);
+      setWarehouseInfo({ tables: [], count: 0 });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchSchemaCache = async () => {
+    try {
+      const response = await fetch("/api/schema");
+      const data = await response.json();
+      if (data.schema && data.schema.columns && Object.keys(data.schema.columns).length > 0) {
+        setSchemaCache(data.schema);
+      }
+    } catch (error) {
+      console.error("Failed to fetch schema cache:", error);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Database className="h-6 w-6 text-green-500" />
+        <h1 className="text-2xl font-bold">Data Warehouse</h1>
+      </div>
+      <p className="text-muted-foreground">
+        Built-in DuckDB warehouse for fast analytics and data storage.
+      </p>
+
+      {/* Stats Overview */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tables</CardTitle>
+            <div className="p-2 rounded-lg bg-green-500/10">
+              <Database className="h-4 w-4 text-green-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                warehouseInfo?.count ?? 0
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Active tables in warehouse</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Data Volume</CardTitle>
+            <div className="p-2 rounded-lg bg-blue-500/10">
+              <Layers className="h-4 w-4 text-blue-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {warehouseInfo?.data_volume ? `${(warehouseInfo.data_volume / (1024 * 1024)).toFixed(1)} MB` : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Total data stored</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Schema Cache</CardTitle>
+            <div className="p-2 rounded-lg bg-violet-500/10">
+              <Cpu className="h-4 w-4 text-violet-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {schemaCache ? schemaCache.dataset_type.toUpperCase() : "None"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {schemaCache ? `${Object.keys(schemaCache.columns).length} columns cached` : "Upload data to cache schema"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tables List */}
+      <Card className="shadow-lg">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Table className="h-5 w-5 text-green-500" />
+              Warehouse Tables
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={fetchWarehouseInfo} disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mr-2" />
+              <span className="text-muted-foreground">Loading warehouse data...</span>
+            </div>
+          ) : warehouseInfo && warehouseInfo.tables && warehouseInfo.tables.length > 0 ? (
+            <div className="space-y-2">
+              {warehouseInfo.tables.map((table, i) => (
+                <div key={i} className="flex items-center gap-3 border rounded-lg p-3">
+                  <Database className="h-4 w-4 text-green-500" />
+                  <span className="font-medium">{table}</span>
+                  <Badge variant="outline" className="ml-auto">active</Badge>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Database className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground text-center">
+                No tables in warehouse yet. Upload data to get started.
+              </p>
+              <Button variant="outline" className="mt-4" onClick={fetchWarehouseInfo}>
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Check Again
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Schema Cache Preview */}
+      {schemaCache && (
+        <Card className="shadow-lg">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-violet-500" />
+              Schema Cache
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2 mb-4">
+              <Badge>{schemaCache.dataset_type.toUpperCase()}</Badge>
+              <span className="text-sm text-muted-foreground">Table: {schemaCache.table}</span>
+              <span className="text-sm text-muted-foreground">• {Object.keys(schemaCache.columns).length} columns</span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(schemaCache.columns).map(([colName, colInfo]) => (
+                <div key={colName} className="border rounded-lg p-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{colName}</span>
+                    <Badge variant="outline" className="text-xs">{colInfo.type}</Badge>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{colInfo.semantic}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Landing Page Component
+function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
+  const { theme, setTheme } = useTheme();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+
+  const features = [
+    {
+      icon: Bot,
+      title: "AI-Powered Agent",
+      description: "LLM-powered intelligent analysis, dbt generation, and NL→SQL conversion",
+      color: "text-violet-500",
+      bgColor: "bg-violet-500/10"
+    },
+    {
+      icon: GitBranch,
+      title: "Automated Pipelines",
+      description: "Generate, execute, and monitor ETL pipelines with intelligent orchestration",
+      color: "text-blue-500",
+      bgColor: "bg-blue-500/10"
+    },
+    {
+      icon: Database,
+      title: "Data Warehouse",
+      description: "Built-in DuckDB warehouse for fast analytics and data storage",
+      color: "text-green-500",
+      bgColor: "bg-green-500/10"
+    },
+    {
+      icon: Cloud,
+      title: "Airbyte Integration",
+      description: "Connect to 300+ data sources with real Airbyte integration",
+      color: "text-cyan-500",
+      bgColor: "bg-cyan-500/10"
+    },
+    {
+      icon: FileSpreadsheet,
+      title: "Excel Support",
+      description: "Upload and process XLSX files with multi-sheet support",
+      color: "text-emerald-500",
+      bgColor: "bg-emerald-500/10"
+    },
+    {
+      icon: Code,
+      title: "dbt Generation",
+      description: "AI generates human-quality dbt transformation models",
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10"
+    }
+  ];
+
+  const steps = [
+    { step: 1, title: "Upload Data", description: "Upload any CSV, JSON, or Excel file" },
+    { step: 2, title: "AI Analysis", description: "LLM detects schema and type" },
+    { step: 3, title: "Generate Pipeline", description: "AI creates dbt models and transforms" },
+    { step: 4, title: "Query & Visualize", description: "Natural language queries" }
+  ];
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold text-xl">DataForge AI</span>
+              <Badge variant="secondary" className="ml-2">v3.0</Badge>
+            </div>
+
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
+              <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
+              <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              >
+                {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+              
+              <Button 
+                onClick={() => setAuthDialogOpen(true)}
+                className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600"
+              >
+                Get Started
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t bg-background p-4 space-y-4">
+            <a href="#features" className="block text-muted-foreground">Features</a>
+            <a href="#how-it-works" className="block text-muted-foreground">How It Works</a>
+            <a href="#pricing" className="block text-muted-foreground">Pricing</a>
+            <Separator />
+            <Button className="w-full bg-gradient-to-r from-violet-600 to-cyan-500" onClick={() => setAuthDialogOpen(true)}>
+              Get Started
+            </Button>
+          </div>
+        )}
+      </nav>
+
+      {/* Hero Section */}
+      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center max-w-4xl mx-auto">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Badge variant="secondary" className="px-4 py-1">
+                <Sparkles className="h-3 w-3 mr-1" />
+                LLM-Powered
+              </Badge>
+              <Badge variant="secondary" className="px-4 py-1">
+                <FileSpreadsheet className="h-3 w-3 mr-1" />
+                XLSX Support
+              </Badge>
+              <Badge variant="secondary" className="px-4 py-1">
+                <Cloud className="h-3 w-3 mr-1" />
+                Airbyte Ready
+              </Badge>
+            </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+              Build Data Pipelines with{" "}
+              <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">
+                AI
+              </span>{" "}
+              — No Coding Required
+            </h1>
+            <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Upload <strong>any dataset</strong> - sales, news, medical, finance, or custom data. 
+              AI automatically detects schema, generates dbt models, and creates production-ready pipelines.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Button 
+                size="lg" 
+                onClick={() => setAuthDialogOpen(true)}
+                className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600 h-12 px-8"
+              >
+                Get Started Free
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button size="lg" variant="outline" className="h-12 px-8">
+                <Play className="mr-2 h-4 w-4" />
+                Watch Demo
+              </Button>
+            </div>
+          </div>
+
+          {/* Hero Illustration */}
+          <div className="mt-16 relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-600/20 to-cyan-500/20 blur-3xl rounded-3xl" />
+            <Card className="relative bg-background/50 backdrop-blur border-2 shadow-2xl">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                    <Bot className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">DataForge AI Agent</p>
+                    <p className="text-sm text-muted-foreground">LLM-powered analysis</p>
+                  </div>
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <p className="text-muted-foreground mb-2">User command:</p>
+                  <p className="font-medium">&quot;Analyze this medical dataset and generate dbt models&quot;</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <span className="text-sm">Detected: MEDICAL dataset (98% confidence)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <span className="text-sm">Generated: 3 dbt models (staging, intermediate, mart)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <span className="text-sm">Created: Patient outcomes analytics pipeline</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Powerful Features</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Everything you need to build, manage, and optimize your data pipelines with AI
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature, index) => (
+              <Card key={index} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className={`w-12 h-12 rounded-lg ${feature.bgColor} flex items-center justify-center mb-4`}>
+                    <feature.icon className={`h-6 w-6 ${feature.color}`} />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Four simple steps to transform your data operations
+            </p>
+          </div>
+          <div className="grid gap-8 md:grid-cols-4">
+            {steps.map((step, index) => (
+              <div key={index} className="relative">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center text-white font-bold">
+                    {step.step}
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="hidden md:block flex-1 h-0.5 bg-gradient-to-r from-violet-600 to-cyan-500" />
+                  )}
+                </div>
+                <h3 className="font-semibold text-lg mb-2">{step.title}</h3>
+                <p className="text-muted-foreground">{step.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">
+              Simple, Transparent{" "}
+              <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">
+                Pricing
+              </span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Choose the plan that fits your data needs. Start free and scale as you grow.
+            </p>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-3 items-start">
+            {/* Free Tier */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="text-center pb-2">
+                <CardTitle className="text-xl">Free</CardTitle>
+                <CardDescription>For individuals exploring data</CardDescription>
+                <div className="mt-4">
+                  <span className="text-4xl font-bold">$0</span>
+                  <span className="text-muted-foreground">/month</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Separator />
+                <ul className="space-y-3">
+                  {[
+                    "5 datasets per month",
+                    "Basic schema detection",
+                    "Manual pipeline creation",
+                    "Community support",
+                    "100MB storage"
+                  ].map((feature) => (
+                    <li key={feature} className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                      <span className="text-sm text-muted-foreground">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setAuthDialogOpen(true)}
+                >
+                  Get Started
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Pro Tier - Most Popular */}
+            <Card className="relative border-2 border-violet-500 shadow-xl hover:shadow-2xl transition-shadow md:scale-105">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <Badge className="bg-gradient-to-r from-violet-600 to-cyan-500 text-white px-4 py-1 text-xs font-semibold">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  MOST POPULAR
+                </Badge>
+              </div>
+              <CardHeader className="text-center pb-2 pt-6">
+                <CardTitle className="text-xl">Pro</CardTitle>
+                <CardDescription>For teams building at scale</CardDescription>
+                <div className="mt-4">
+                  <span className="text-4xl font-bold">$49</span>
+                  <span className="text-muted-foreground">/month</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Separator />
+                <ul className="space-y-3">
+                  {[
+                    "Unlimited datasets",
+                    "AI-powered analysis (LLM)",
+                    "Auto dbt model generation",
+                    "NL→SQL query",
+                    "10GB storage",
+                    "Priority support",
+                    "Airbyte connections (up to 5)"
+                  ].map((feature) => (
+                    <li key={feature} className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-violet-500 shrink-0 mt-0.5" />
+                      <span className="text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  className="w-full bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600"
+                  onClick={() => setAuthDialogOpen(true)}
+                >
+                  Start Free Trial
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Enterprise Tier */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="text-center pb-2">
+                <CardTitle className="text-xl">Enterprise</CardTitle>
+                <CardDescription>For organizations with custom needs</CardDescription>
+                <div className="mt-4">
+                  <span className="text-4xl font-bold">Custom</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Separator />
+                <ul className="space-y-3">
+                  {[
+                    "Everything in Pro",
+                    "Unlimited storage",
+                    "Unlimited Airbyte connections",
+                    "Custom AI model training",
+                    "Dedicated support",
+                    "SLA guarantee",
+                    "On-premise deployment option"
+                  ].map((feature) => (
+                    <li key={feature} className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                      <span className="text-sm text-muted-foreground">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setAuthDialogOpen(true)}
+                >
+                  Contact Sales
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold">DataForge AI v3.0</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              LLM + XLSX + Airbyte — Works with ANY dataset
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      <AuthDialog
+        open={authDialogOpen}
+        onOpenChange={setAuthDialogOpen}
+        onSuccess={onGetStarted}
+      />
+    </div>
+  );
+}
+
+// Main App Component
+export default function DataForgeApp() {
+  const { theme, setTheme } = useTheme();
+  const { logout, isAuthenticated, restoreSession } = useAuthStore();
+  const [currentView, setCurrentView] = useState<"landing" | "app">("landing");
+  const [activeTab, setActiveTab] = useState("home");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Restore auth session on mount
+  useEffect(() => {
+    restoreSession();
+  }, []);
+
+  // Auto-login if session restored
+  useEffect(() => {
+    if (isAuthenticated) {
+      setCurrentView("app");
+    }
+  }, [isAuthenticated]);
+
+  const handleLogout = () => {
+    logout();
+    setCurrentView("landing");
+  };
+  
+  // State
+  const [isLoading, setIsLoading] = useState(false);
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({
+    total_pipelines: 0,
+    total_executions: 0,
+    success_rate: 95.5,
+    tables: 0,
+    reports: 0,
+    data_volume: 0,
+    dataset_type: 'none',
+    current_table: 'none'
+  });
+  const [chartData, setChartData] = useState<ChartData>({
+    pipeline_runs: [],
+    primary_chart: [],
+    secondary_chart: [],
+    trend_chart: []
+  });
+  const [schema, setSchema] = useState<SchemaInfo | null>(null);
+  const [pipelineStatus, setPipelineStatus] = useState<"idle" | "running" | "success" | "error">("idle");
+  
+  // New state for LLM features
+  const [llmAnalysis, setLlmAnalysis] = useState<LLMAnalysis | null>(null);
+  const [llmLoading, setLlmLoading] = useState(false);
+  const [dbtModels, setDbtModels] = useState<Array<{ path: string; content: string; description: string }> | null>(null);
+  const [dbtLoading, setDbtLoading] = useState(false);
+
+  // Fetch initial data
+  useEffect(() => {
+    if (currentView === "app") {
+      fetchFiles();
+      fetchStats();
+      fetchChartData();
+      fetchSchema();
+    }
+  }, [currentView]);
+
+  const fetchFiles = async () => {
+    try {
+      const response = await fetch("/api/files");
+      const data = await response.json();
+      setFiles(data.files || []);
+    } catch (error) {
+      console.error("Failed to fetch files:", error);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch("/api/dashboard");
+      const data = await response.json();
+      setStats(data);
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    }
+  };
+
+  const fetchChartData = async () => {
+    try {
+      const response = await fetch("/api/dashboard/charts");
+      const data = await response.json();
+      setChartData(data);
+    } catch (error) {
+      console.error("Failed to fetch chart data:", error);
+    }
+  };
+
+  const fetchSchema = async () => {
+    try {
+      const response = await fetch("/api/schema");
+      const data = await response.json();
+      if (data.schema && data.schema.columns && Object.keys(data.schema.columns).length > 0) {
+        setSchema(data.schema);
+      } else {
+        setSchema(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch schema:", error);
+      setSchema(null);
+    }
+  };
+
+  // LLM Analysis
+  const handleLLMAnalysis = async () => {
+    setLlmLoading(true);
+    try {
+      const response = await fetch("/api/llm/analyze", { method: "POST" });
+      const data = await response.json();
+      setLlmAnalysis(data.analysis);
+    } catch (error) {
+      console.error("LLM analysis failed:", error);
+    } finally {
+      setLlmLoading(false);
+    }
+  };
+
+  // Generate dbt Models
+  const handleGenerateDBT = async () => {
+    setDbtLoading(true);
+    try {
+      const response = await fetch("/api/llm/generate-dbt", { method: "POST" });
+      const data = await response.json();
+      setDbtModels(data.models);
+      fetchFiles(); // Refresh files to show new dbt models
+    } catch (error) {
+      console.error("dbt generation failed:", error);
+    } finally {
+      setDbtLoading(false);
+    }
+  };
+
+  // Agent execution
+  const handleExecuteCommand = async (command: string) => {
+    setIsLoading(true);
+    setPipelineStatus("running");
+    
+    try {
+      const response = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command })
+      });
+      
+      const result = await response.json();
+      setExecutionResult(result);
+      setPipelineStatus(result.status === "success" ? "success" : "error");
+      
+      // Refresh data after execution
+      setTimeout(() => {
+        fetchFiles();
+        fetchStats();
+        fetchChartData();
+        fetchSchema();
+      }, 1000);
+    } catch (error) {
+      console.error("Execution error:", error);
+      setPipelineStatus("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Query execution
+  const handleQuery = async (question: string): Promise<QueryResult> => {
+    const response = await fetch("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    });
+    
+    const result = await response.json();
+    
+    // Update schema if returned
+    if (result.schema_info) {
+      setSchema(result.schema_info);
+    }
+    
+    return result;
+  };
+
+  // Sidebar navigation
+  const sidebarItems = [
+    { id: "home", label: "Home", icon: Home },
+    { id: "upload", label: "Upload Data", icon: Upload },
+    { id: "schema", label: "Schema", icon: Table },
+    { id: "analysis", label: "AI Analysis", icon: Bot },
+    { id: "agent", label: "Agent Workspace", icon: Zap },
+    { id: "pipelines", label: "Pipelines", icon: GitBranch },
+    { id: "dbt", label: "dbt Models", icon: Code },
+    { id: "airbyte", label: "Data Sources", icon: Cloud },
+    { id: "warehouse", label: "Warehouse", icon: Database },
+    { id: "reports", label: "Reports", icon: BarChart3 },
+    { id: "query", label: "Query Data", icon: FileText },
+    { id: "files", label: "Files", icon: FolderOpen },
+  ];
+
+  // Render landing page
+  if (currentView === "landing") {
+    return <LandingPage onGetStarted={() => setCurrentView("app")} />;
+  }
+
+  // Main App Layout
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Mobile Header */}
+      <header className="lg:hidden sticky top-0 z-50 bg-background border-b">
+        <div className="flex items-center justify-between h-14 px-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
+              <Zap className="w-5 w-5 text-white" />
+            </div>
+            <span className="font-bold">DataForge</span>
+            {stats.dataset_type && stats.dataset_type !== 'none' && (
+              <Badge variant="outline" className="text-xs">{stats.dataset_type}</Badge>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+        </div>
+      </header>
+
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-50 bg-black/50"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside
+        className={`
+          lg:hidden fixed top-0 left-0 z-50 h-full w-64 bg-background border-r transform transition-transform
+          ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-2 h-14 px-4 border-b">
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-bold">DataForge AI</span>
+          </div>
+          <ScrollArea className="flex-1 p-2">
+            <nav className="space-y-1">
+              {sidebarItems.map((item) => (
+                <Button
+                  key={item.id}
+                  variant={activeTab === item.id ? "secondary" : "ghost"}
+                  className="w-full justify-start gap-3"
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileSidebarOpen(false);
+                  }}
+                >
+                  <item.icon className="h-5 w-5" />
+                  {item.label}
+                </Button>
+              ))}
+            </nav>
+          </ScrollArea>
+          <div className="p-2 border-t">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-red-500"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-5 w-5" />
+              Logout
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Desktop Layout */}
+      <div className="flex flex-1">
+        {/* Desktop Sidebar */}
+        <aside className="hidden lg:flex flex-col w-64 border-r bg-background">
+          <div className="flex items-center gap-2 h-14 px-4 border-b">
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-bold">DataForge AI</span>
+          </div>
+          <ScrollArea className="flex-1 p-2">
+            <nav className="space-y-1">
+              {sidebarItems.map((item) => (
+                <Button
+                  key={item.id}
+                  variant={activeTab === item.id ? "secondary" : "ghost"}
+                  className="w-full justify-start gap-3"
+                  onClick={() => setActiveTab(item.id)}
+                >
+                  <item.icon className="h-5 w-5" />
+                  {item.label}
+                </Button>
+              ))}
+            </nav>
+          </ScrollArea>
+          <div className="p-2 border-t space-y-1">
+            {stats.dataset_type && stats.dataset_type !== 'none' && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                Current Dataset: <Badge variant="outline">{stats.dataset_type}</Badge>
+              </div>
+            )}
+            {stats.features && (
+              <div className="px-3 py-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Bot className="h-3 w-3" />
+                  LLM: {stats.features.llm_enabled ? "✓" : "✗"}
+                </div>
+                <div className="flex items-center gap-1">
+                  <FileSpreadsheet className="h-3 w-3" />
+                  XLSX: {stats.features.xlsx_support ? "✓" : "✗"}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Cloud className="h-3 w-3" />
+                  Airbyte: {stats.features.airbyte_connected ? "✓" : "✗"}
+                </div>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-red-500 hover:text-red-600"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-5 w-5" />
+              Logout
+            </Button>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto">
+          <ScrollArea className="h-[calc(100vh-3.5rem)] lg:h-screen">
+            <div className="p-4 md:p-6 lg:p-8 space-y-6">
+              
+              {/* Home Tab */}
+              {activeTab === "home" && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h1 className="text-2xl font-bold">Welcome back! 👋</h1>
+                      <p className="text-muted-foreground">
+                        {schema ? `Working with ${schema.dataset_type} dataset` : 'Upload a dataset to get started'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {!schema ? (
+                    <Card className="border-dashed">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Upload className="h-5 w-5" />
+                          Get Started
+                        </CardTitle>
+                        <CardDescription>
+                          Upload a CSV, JSON, or Excel file, or try a sample dataset
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <FileUploader onUploadComplete={() => { fetchSchema(); fetchStats(); }} />
+                        <div className="flex items-center gap-2">
+                          <Separator className="flex-1" />
+                          <span className="text-sm text-muted-foreground">or try sample data</span>
+                          <Separator className="flex-1" />
+                        </div>
+                        <SampleDatasets onSelect={() => { fetchSchema(); fetchStats(); fetchChartData(); }} />
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Button onClick={handleLLMAnalysis} disabled={llmLoading}>
+                          {llmLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bot className="h-4 w-4 mr-2" />}
+                          Analyze with AI
+                        </Button>
+                        <Button onClick={handleGenerateDBT} disabled={dbtLoading} variant="outline">
+                          {dbtLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Code className="h-4 w-4 mr-2" />}
+                          Generate dbt Models
+                        </Button>
+                      </div>
+
+                      <CommandBox 
+                        onExecute={handleExecuteCommand} 
+                        isLoading={isLoading}
+                      />
+
+                      {executionResult && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              {executionResult.status === "success" ? (
+                                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                              ) : (
+                                <X className="h-5 w-5 text-red-500" />
+                              )}
+                              Execution Result
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="flex items-center gap-4 text-sm">
+                              <Badge variant={executionResult.status === "success" ? "default" : "destructive"}>
+                                {executionResult.status}
+                              </Badge>
+                              {executionResult.duration && (
+                                <span className="text-muted-foreground">
+                                  Completed in {executionResult.duration.toFixed(2)}s
+                                </span>
+                              )}
+                            </div>
+                            
+                            {executionResult.logs && executionResult.logs.length > 0 && (
+                              <div className="bg-muted rounded-lg p-4">
+                                <p className="text-sm font-medium mb-2">Execution Logs:</p>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                  {executionResult.logs.map((log, i) => (
+                                    <p key={i} className="text-sm text-muted-foreground font-mono">
+                                      {log}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {executionResult.files && executionResult.files.length > 0 && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Generated Files:</p>
+                                <div className="grid gap-2 md:grid-cols-2">
+                                  {executionResult.files.map((file, i) => (
+                                    <Badge key={i} variant="secondary">
+                                      {file}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  )}
+
+                  <StatsCards stats={stats} />
+                </>
+              )}
+
+              {/* Upload Tab */}
+              {activeTab === "upload" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-6 w-6 text-violet-500" />
+                    <h1 className="text-2xl font-bold">Upload Data</h1>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Upload any CSV, JSON, or Excel file. The system will automatically detect the schema.
+                  </p>
+
+                  <FileUploader onUploadComplete={() => { fetchSchema(); fetchStats(); fetchChartData(); }} />
+
+                  <div className="flex items-center gap-2">
+                    <Separator className="flex-1" />
+                    <span className="text-sm text-muted-foreground">or try sample datasets</span>
+                    <Separator className="flex-1" />
+                  </div>
+
+                  <SampleDatasets onSelect={() => { fetchSchema(); fetchStats(); fetchChartData(); }} />
+                </>
+              )}
+
+              {/* Schema Tab */}
+              {activeTab === "schema" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Table className="h-6 w-6 text-blue-500" />
+                    <h1 className="text-2xl font-bold">Detected Schema</h1>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Schema is automatically detected from your uploaded data.
+                  </p>
+
+                  <SchemaDisplay schema={schema} />
+                </>
+              )}
+
+              {/* AI Analysis Tab */}
+              {activeTab === "analysis" && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-6 w-6 text-violet-500" />
+                      <h1 className="text-2xl font-bold">AI Analysis</h1>
+                    </div>
+                    <Button onClick={handleLLMAnalysis} disabled={llmLoading || !schema}>
+                      {llmLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                      Analyze with AI
+                    </Button>
+                  </div>
+                  <p className="text-muted-foreground">
+                    LLM-powered intelligent analysis of your dataset.
+                  </p>
+
+                  <LLMAnalysisDisplay analysis={llmAnalysis} isLoading={llmLoading} />
+                </>
+              )}
+
+              {/* Agent Tab */}
+              {activeTab === "agent" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-6 w-6 text-violet-500" />
+                    <h1 className="text-2xl font-bold">Agent Workspace</h1>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Tell the AI agent what to do — ingest, analyze, query, generate dbt models, run pipelines, and more.
+                  </p>
+
+                  {schema ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Info className="h-4 w-4" />
+                      Working with <Badge variant="outline">{schema.dataset_type}</Badge> dataset — {Object.keys(schema.columns).length} columns detected
+                    </div>
+                  ) : (
+                    <Card className="border border-amber-500/30 bg-amber-500/5">
+                      <CardContent className="flex items-center gap-3 py-3 px-4">
+                        <Upload className="h-5 w-5 text-amber-500 shrink-0" />
+                        <p className="text-sm text-amber-700 dark:text-amber-400">
+                          No dataset loaded. <Button variant="link" className="h-auto p-0 text-amber-700 dark:text-amber-400 underline" onClick={() => setActiveTab("upload")}>Upload data</Button> first, or use the commands below to get started.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <CommandBox 
+                    onExecute={handleExecuteCommand} 
+                    isLoading={isLoading}
+                    suggestedCommands={schema ? [
+                      `Analyze the ${schema.dataset_type} dataset`,
+                      "Run full data pipeline",
+                      "Generate dbt transformation models",
+                      "Show top 10 records",
+                    ] : undefined}
+                  />
+
+                  {executionResult && (
+                    <Card className="shadow-lg">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2">
+                            <Play className="h-5 w-5 text-green-500" />
+                            Agent Output
+                          </CardTitle>
+                          <Badge variant={executionResult.status === "success" ? "default" : "destructive"}>
+                            {executionResult.status}
+                          </Badge>
+                        </div>
+                        <CardDescription>
+                          Files generated by DataForge Agent
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {executionResult.logs && executionResult.logs.length > 0 && (
+                          <div className="mb-4 p-3 bg-muted rounded-lg max-h-48 overflow-y-auto">
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">Execution Log</p>
+                            {executionResult.logs.map((log, i) => (
+                              <p key={i} className="text-xs font-mono text-muted-foreground">{log}</p>
+                            ))}
+                          </div>
+                        )}
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                          {files.map((file, i) => (
+                            <FileCard
+                              key={i}
+                              file={file}
+                              status={executionResult.status === "success" ? "success" : "error"}
+                            />
+                          ))}
+                          {files.length === 0 && isLoading && (
+                            <>
+                              <FileCardSkeleton />
+                              <FileCardSkeleton />
+                              <FileCardSkeleton />
+                            </>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+
+              {/* Pipelines Tab */}
+              {activeTab === "pipelines" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="h-6 w-6 text-blue-500" />
+                    <h1 className="text-2xl font-bold">Pipelines</h1>
+                  </div>
+                  <PipelineDAG />
+                </>
+              )}
+
+              {/* dbt Models Tab */}
+              {activeTab === "dbt" && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Code className="h-6 w-6 text-orange-500" />
+                      <h1 className="text-2xl font-bold">dbt Models</h1>
+                    </div>
+                    <Button onClick={handleGenerateDBT} disabled={dbtLoading || !schema}>
+                      {dbtLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                      Generate dbt Models
+                    </Button>
+                  </div>
+                  <p className="text-muted-foreground">
+                    AI-generated dbt transformation models for your data.
+                  </p>
+
+                  <DBTModelsDisplay models={dbtModels} isLoading={dbtLoading} />
+                </>
+              )}
+
+              {/* Airbyte Tab */}
+              {activeTab === "airbyte" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Cloud className="h-6 w-6 text-cyan-500" />
+                    <h1 className="text-2xl font-bold">Data Sources</h1>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Connect to 300+ data sources via Airbyte integration.
+                  </p>
+
+                  <AirbyteConnectorManager />
+                </>
+              )}
+
+              {/* Warehouse Tab */}
+              {activeTab === "warehouse" && (
+                <WarehouseView />
+              )}
+
+              {/* Reports Tab */}
+              {activeTab === "reports" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-6 w-6 text-purple-500" />
+                    <h1 className="text-2xl font-bold">Reports</h1>
+                  </div>
+                  <p className="text-muted-foreground">
+                    View generated reports and analytics outputs.
+                  </p>
+                  <FileExplorer filterCategory="report" />
+                </>
+              )}
+
+              {/* Query Tab */}
+              {activeTab === "query" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-6 w-6 text-amber-500" />
+                    <h1 className="text-2xl font-bold">Query Data</h1>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Ask questions in plain English — the AI converts them to SQL and runs them against your data warehouse.
+                  </p>
+
+                  {!schema && (
+                    <Card className="border border-amber-500/30 bg-amber-500/5">
+                      <CardContent className="flex items-center gap-3 py-3 px-4">
+                        <Upload className="h-5 w-5 text-amber-500 shrink-0" />
+                        <p className="text-sm text-amber-700 dark:text-amber-400">
+                          No dataset loaded yet. <Button variant="link" className="h-auto p-0 text-amber-700 dark:text-amber-400 underline" onClick={() => setActiveTab("upload")}>Upload data</Button> to enable AI-powered queries.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <QueryBox 
+                    onQuery={handleQuery} 
+                  />
+
+                  {schema && schema.suggested_queries && schema.suggested_queries.length > 0 && (
+                    <Card className="shadow-lg">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-violet-500" />
+                          AI-Suggested Queries for Your {schema.dataset_type.charAt(0).toUpperCase() + schema.dataset_type.slice(1)} Data
+                        </CardTitle>
+                        <CardDescription>Click any suggestion to run it instantly</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {schema.suggested_queries.map((query, i) => (
+                            <Card
+                              key={i}
+                              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all p-4 border"
+                              onClick={() => handleQuery(query)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-violet-500/10">
+                                  <Search className="h-4 w-4 text-violet-500" />
+                                </div>
+                                <p className="text-sm font-medium">{query}</p>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+
+              {/* Files Tab */}
+              {activeTab === "files" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="h-6 w-6 text-teal-500" />
+                    <h1 className="text-2xl font-bold">All Files</h1>
+                  </div>
+                  <FileExplorer />
+                </>
+              )}
+            </div>
+          </ScrollArea>
+        </main>
+      </div>
+    </div>
+  );
+}

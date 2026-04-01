@@ -1,0 +1,26 @@
+patient_id,patient_name,age,gender,diagnosis,treatment,medication,doctor_name,department,hospital,admission_date,discharge_date,treatment_cost,recovery_status
+P001,John Anderson,45,M,Hypertension,Lifestyle Modification,Lisinopril,Dr. Smith,Cardiology,City General Hospital,2024-01-05,2024-01-08,3500,Recovered
+P002,Mary Johnson,32,F,Type 2 Diabetes,Insulin Therapy,Metformin,Dr. Williams,Endocrinology,Metro Medical Center,2024-01-06,2024-01-10,5200,Improving
+P003,Robert Brown,58,M,Coronary Artery Disease,Angioplasty,Aspirin,Dr. Chen,Cardiology,Heart Care Institute,2024-01-07,2024-01-15,28000,Recovered
+P004,Lisa Davis,28,F,Pneumonia,Antibiotic Course,Amoxicillin,Dr. Patel,Pulmonology,City General Hospital,2024-01-08,2024-01-14,4500,Recovered
+P005,Michael Wilson,67,M,Chronic Kidney Disease,Dialysis,Epoetin,Dr. Garcia,Nephrology,Kidney Care Center,2024-01-09,2024-01-20,18000,Under Treatment
+P006,Sarah Miller,41,F,Breast Cancer,Chemotherapy,Paclitaxel,Dr. Thompson,Oncology,Cancer Treatment Center,2024-01-10,2024-01-25,45000,Improving
+P007,James Taylor,55,M,Arthritis,Physical Therapy,Ibuprofen,Dr. Anderson,Orthopedics,Joint Care Hospital,2024-01-11,2024-01-16,3800,Recovered
+P008,Emily White,36,F,Migraine,Preventive Medication,Sumatriptan,Dr. Martinez,Neurology,Neuro Care Clinic,2024-01-12,2024-01-14,2200,Recovered
+P009,David Harris,72,M,Prostate Cancer,Radiation Therapy,Leuprolide,Dr. Robinson,Oncology,Cancer Treatment Center,2024-01-13,2024-02-01,52000,Under Treatment
+P010,Jennifer Moore,25,F,Appendicitis,Appendectomy,Cefazolin,Dr. Clark,Surgery,City General Hospital,2024-01-14,2024-01-18,12000,Recovered
+P011,Thomas Lee,48,M,Gastritis,Endoscopy,Omeprazole,Dr. Lewis,Gastroenterology,Digestive Health Center,2024-01-15,2024-01-17,2800,Recovered
+P012,Amanda Clark,39,F,Thyroid Disorder,Thyroid Replacement,Levothyroxine,Dr. Walker,Endocrinology,Metro Medical Center,2024-01-16,2024-01-19,3200,Improving
+P013,Christopher Martin,62,M,COPD,Bronchodilator Therapy,Tiotropium,Dr. Hall,Pulmonology,Lung Care Institute,2024-01-17,2024-01-24,6500,Under Treatment
+P014,Jessica Thompson,33,F,Depression,Cognitive Therapy,Sertraline,Dr. Adams,Psychiatry,Mental Health Center,2024-01-18,2024-01-25,4800,Improving
+P015,Daniel Garcia,51,M,Liver Disease,Lifestyle Changes,Ursodiol,Dr. Nelson,Gastroenterology,Liver Care Hospital,2024-01-19,2024-01-28,7500,Under Treatment
+P016,Michelle Rodriguez,29,F,Asthma,Inhaler Therapy,Albuterol,Dr. Young,Pulmonology,City General Hospital,2024-01-20,2024-01-23,1800,Recovered
+P017,William Martinez,64,M,Parkinsons Disease,Medication Management,Levodopa,Dr. King,Neurology,Neuro Care Clinic,2024-01-21,2024-01-30,9500,Under Treatment
+P018,Elizabeth Brown,44,F,Osteoporosis,Bisphosphonate Therapy,Alendronate,Dr. Scott,Orthopedics,Bone Health Center,2024-01-22,2024-01-25,3600,Improving
+P019,Richard Davis,59,M,Heart Failure,Medication and Monitoring,Carvedilol,Dr. Baker,Cardiology,Heart Care Institute,2024-01-23,2024-02-02,15000,Under Treatment
+P020,Patricia Wilson,37,F,Anemia,Iron Supplementation,Ferrous Sulfate,Dr. Hill,Hematology,Blood Disorder Center,2024-01-24,2024-01-28,2400,Recovered
+P021,Steven Taylor,46,M,Anxiety Disorder,Therapy and Medication,Escitalopram,Dr. Green,Psychiatry,Mental Health Center,2024-01-25,2024-02-01,5200,Improving
+P022,Nancy Anderson,52,F,Rheumatoid Arthritis,DMARDs,Methotrexate,Dr. Phillips,Rheumatology,Joint Care Hospital,2024-01-26,2024-02-03,8900,Under Treatment
+P023,Mark Thomas,68,M,Stroke,Rehabilitation,Aspirin,Dr. Evans,Neurology,Stroke Recovery Center,2024-01-27,2024-02-15,35000,Improving
+P024,Linda Jackson,31,F,Epilepsy,Anticonvulsant Therapy,Levetiracetam,Dr. Turner,Neurology,Neuro Care Clinic,2024-01-28,2024-02-02,5800,Stable
+P025,Kevin White,42,M,Sleep Apnea,CPAP Therapy,,Dr. Harris,Pulmonology,Sleep Disorder Center,2024-01-29,2024-01-31,4200,Improving

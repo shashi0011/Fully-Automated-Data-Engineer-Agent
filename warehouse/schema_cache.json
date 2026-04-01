@@ -1,0 +1,125 @@
+{
+  "source_file": "/home/z/my-project/data/raw/custom_space_missions.csv",
+  "table_name": "custom_space_missions_clean",
+  "dataset_type": "generic",
+  "row_count": 15,
+  "column_count": 9,
+  "columns": {
+    "mission_id": {
+      "type": "str",
+      "semantic": "id",
+      "nullable": false,
+      "sample_values": [
+        "M001",
+        "M002",
+        "M003"
+      ],
+      "unique_count": 15,
+      "total_count": 15
+    },
+    "mission_name": {
+      "type": "str",
+      "semantic": "name",
+      "nullable": false,
+      "sample_values": [
+        "Artemis I",
+        "JWST",
+        "Perseverance"
+      ],
+      "unique_count": 15,
+      "total_count": 15
+    },
+    "space_agency": {
+      "type": "str",
+      "semantic": "generic",
+      "nullable": false,
+      "sample_values": [
+        "NASA",
+        "NASA",
+        "NASA"
+      ],
+      "unique_count": 5,
+      "total_count": 15
+    },
+    "launch_year": {
+      "type": "int64",
+      "semantic": "generic",
+      "nullable": false,
+      "sample_values": [
+        2022,
+        2021,
+        2020
+      ],
+      "unique_count": 8,
+      "total_count": 15
+    },
+    "destination": {
+      "type": "str",
+      "semantic": "generic",
+      "nullable": false,
+      "sample_values": [
+        "Moon",
+        "L2 Orbit",
+        "Mars"
+      ],
+      "unique_count": 10,
+      "total_count": 15
+    },
+    "mission_type": {
+      "type": "str",
+      "semantic": "category",
+      "nullable": false,
+      "sample_values": [
+        "Crewed",
+        "Observatory",
+        "Rover"
+      ],
+      "unique_count": 8,
+      "total_count": 15
+    },
+    "budget_millions": {
+      "type": "int64",
+      "semantic": "generic",
+      "nullable": false,
+      "sample_values": [
+        93000,
+        10000,
+        2700
+      ],
+      "unique_count": 15,
+      "total_count": 15
+    },
+    "duration_days": {
+      "type": "int64",
+      "semantic": "percentage",
+      "nullable": false,
+      "sample_values": [
+        25,
+        365,
+        687
+      ],
+      "unique_count": 11,
+      "total_count": 15
+    },
+    "status": {
+      "type": "str",
+      "semantic": "category",
+      "nullable": false,
+      "sample_values": [
+        "Success",
+        "Active",
+        "Active"
+      ],
+      "unique_count": 3,
+      "total_count": 15
+    }
+  },
+  "detected_at": "2026-03-25T08:25:50.529649",
+  "suggested_queries": [
+    "Sum of launch_year",
+    "Average launch_year",
+    "Group by mission_name",
+    "Show all records"
+  ],
+  "raw_table": "custom_space_missions_raw"
+}

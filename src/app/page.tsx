@@ -42,7 +42,8 @@ import {
   Code,
   RefreshCw,
   Download,
-  Search
+  Search,
+  Eye
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { AuthDialog } from "@/components/auth-dialog";
@@ -204,7 +205,6 @@ function SchemaDisplay({ schema }: { schema: SchemaInfo | null }) {
 
   return (
     <div className="space-y-4">
-      {/* Dataset Type Badge */}
       <div className="flex items-center gap-2">
         <Badge className={datasetTypeColors[schema.dataset_type] || datasetTypeColors.generic}>
           {schema.dataset_type.toUpperCase()}
@@ -214,7 +214,6 @@ function SchemaDisplay({ schema }: { schema: SchemaInfo | null }) {
         </span>
       </div>
 
-      {/* Columns Grid */}
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
         {Object.entries(schema.columns).map(([colName, colInfo]) => (
           <Card key={colName} className="p-3">
@@ -236,7 +235,6 @@ function SchemaDisplay({ schema }: { schema: SchemaInfo | null }) {
         ))}
       </div>
 
-      {/* Suggested Queries */}
       {schema.suggested_queries && schema.suggested_queries.length > 0 && (
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -284,7 +282,6 @@ function LLMAnalysisDisplay({ analysis, isLoading }: { analysis: LLMAnalysis | n
 
   return (
     <div className="space-y-4">
-      {/* Dataset Type & Confidence */}
       <Card className="p-4">
         <div className="flex items-center justify-between">
           <div>
@@ -300,7 +297,6 @@ function LLMAnalysisDisplay({ analysis, isLoading }: { analysis: LLMAnalysis | n
         </div>
       </Card>
 
-      {/* Natural Language Insights */}
       {analysis.natural_language_insights && analysis.natural_language_insights.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -322,7 +318,6 @@ function LLMAnalysisDisplay({ analysis, isLoading }: { analysis: LLMAnalysis | n
         </Card>
       )}
 
-      {/* Recommended Transformations */}
       {analysis.recommended_transformations && analysis.recommended_transformations.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -349,7 +344,6 @@ function LLMAnalysisDisplay({ analysis, isLoading }: { analysis: LLMAnalysis | n
         </Card>
       )}
 
-      {/* Suggested Metrics */}
       {analysis.suggested_metrics && analysis.suggested_metrics.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -372,7 +366,6 @@ function LLMAnalysisDisplay({ analysis, isLoading }: { analysis: LLMAnalysis | n
         </Card>
       )}
 
-      {/* Data Quality */}
       {analysis.data_quality_summary && (
         <Card>
           <CardHeader className="pb-2">
@@ -520,7 +513,6 @@ function AirbyteConnectorManager() {
 
   return (
     <div className="space-y-6">
-      {/* Popular Connectors */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -552,7 +544,6 @@ function AirbyteConnectorManager() {
         </CardContent>
       </Card>
 
-      {/* Create Source Form */}
       {selectedSourceType && (
         <Card>
           <CardHeader>
@@ -598,7 +589,6 @@ function AirbyteConnectorManager() {
         </Card>
       )}
 
-      {/* Existing Sources */}
       {sources.length > 0 && (
         <Card>
           <CardHeader>
@@ -623,7 +613,6 @@ function AirbyteConnectorManager() {
         </Card>
       )}
 
-      {/* Connections */}
       {connections.length > 0 && (
         <Card>
           <CardHeader>
@@ -685,7 +674,6 @@ function DBTModelsDisplay({ models, isLoading }: { models: Array<{ path: string;
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      {/* Model List */}
       <Card className="md:col-span-1">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Generated Models</CardTitle>
@@ -708,7 +696,6 @@ function DBTModelsDisplay({ models, isLoading }: { models: Array<{ path: string;
         </CardContent>
       </Card>
 
-      {/* Model Content */}
       <Card className="md:col-span-2">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -812,6 +799,35 @@ function FileUploader({ onUploadComplete }: { onUploadComplete: () => void }) {
   );
 }
 
+// ✅ FIX: Active File Bar (like ChatGPT attachment bar)
+function ActiveFileBar({ file, onClear, onPreview }: {
+  file: FileItem;
+  onClear: () => void;
+  onPreview: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
+      <FileSpreadsheet className="h-4 w-4 text-green-500 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{file.name}</p>
+        <p className="text-xs text-muted-foreground truncate">{file.path}</p>
+      </div>
+      <Badge variant="secondary" className="text-xs shrink-0">
+        {file.category.replace('_', ' ')}
+      </Badge>
+      <Badge variant="outline" className="text-xs shrink-0">
+        {file.size < 1024 ? `${file.size} B` : `${(file.size / 1024).toFixed(1)} KB`}
+      </Badge>
+      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onPreview} title="Preview file">
+        <Eye className="h-3.5 w-3.5" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500" onClick={onClear} title="Remove file">
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 // Sample Datasets Component
 function SampleDatasets({ onSelect }: { onSelect: (filename: string) => void }) {
   const samples = [
@@ -908,7 +924,6 @@ function WarehouseView() {
         Built-in DuckDB warehouse for fast analytics and data storage.
       </p>
 
-      {/* Stats Overview */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -962,7 +977,6 @@ function WarehouseView() {
         </Card>
       </div>
 
-      {/* Tables List */}
       <Card className="shadow-lg">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -1007,7 +1021,6 @@ function WarehouseView() {
         </CardContent>
       </Card>
 
-      {/* Schema Cache Preview */}
       {schemaCache && (
         <Card className="shadow-lg">
           <CardHeader className="pb-3">
@@ -1047,48 +1060,12 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   const features = [
-    {
-      icon: Bot,
-      title: "AI-Powered Agent",
-      description: "LLM-powered intelligent analysis, dbt generation, and NL→SQL conversion",
-      color: "text-violet-500",
-      bgColor: "bg-violet-500/10"
-    },
-    {
-      icon: GitBranch,
-      title: "Automated Pipelines",
-      description: "Generate, execute, and monitor ETL pipelines with intelligent orchestration",
-      color: "text-blue-500",
-      bgColor: "bg-blue-500/10"
-    },
-    {
-      icon: Database,
-      title: "Data Warehouse",
-      description: "Built-in DuckDB warehouse for fast analytics and data storage",
-      color: "text-green-500",
-      bgColor: "bg-green-500/10"
-    },
-    {
-      icon: Cloud,
-      title: "Airbyte Integration",
-      description: "Connect to 300+ data sources with real Airbyte integration",
-      color: "text-cyan-500",
-      bgColor: "bg-cyan-500/10"
-    },
-    {
-      icon: FileSpreadsheet,
-      title: "Excel Support",
-      description: "Upload and process XLSX files with multi-sheet support",
-      color: "text-emerald-500",
-      bgColor: "bg-emerald-500/10"
-    },
-    {
-      icon: Code,
-      title: "dbt Generation",
-      description: "AI generates human-quality dbt transformation models",
-      color: "text-orange-500",
-      bgColor: "bg-orange-500/10"
-    }
+    { icon: Bot, title: "AI-Powered Agent", description: "LLM-powered intelligent analysis, dbt generation, and NL→SQL conversion", color: "text-violet-500", bgColor: "bg-violet-500/10" },
+    { icon: GitBranch, title: "Automated Pipelines", description: "Generate, execute, and monitor ETL pipelines with intelligent orchestration", color: "text-blue-500", bgColor: "bg-blue-500/10" },
+    { icon: Database, title: "Data Warehouse", description: "Built-in DuckDB warehouse for fast analytics and data storage", color: "text-green-500", bgColor: "bg-green-500/10" },
+    { icon: Cloud, title: "Airbyte Integration", description: "Connect to 300+ data sources with real Airbyte integration", color: "text-cyan-500", bgColor: "bg-cyan-500/10" },
+    { icon: FileSpreadsheet, title: "Excel Support", description: "Upload and process XLSX files with multi-sheet support", color: "text-emerald-500", bgColor: "bg-emerald-500/10" },
+    { icon: Code, title: "dbt Generation", description: "AI generates human-quality dbt transformation models", color: "text-orange-500", bgColor: "bg-orange-500/10" }
   ];
 
   const steps = [
@@ -1100,7 +1077,6 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -1111,78 +1087,46 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
               <span className="font-bold text-xl">DataForge AI</span>
               <Badge variant="secondary" className="ml-2">v3.0</Badge>
             </div>
-
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
               <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
               <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
             </div>
-
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              >
+              <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
-              
-              <Button 
-                onClick={() => setAuthDialogOpen(true)}
-                className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600"
-              >
+              <Button onClick={() => setAuthDialogOpen(true)} className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600">
                 Get Started
               </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
+              <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
                 {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
             </div>
           </div>
         </div>
-
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t bg-background p-4 space-y-4">
             <a href="#features" className="block text-muted-foreground">Features</a>
             <a href="#how-it-works" className="block text-muted-foreground">How It Works</a>
             <a href="#pricing" className="block text-muted-foreground">Pricing</a>
             <Separator />
-            <Button className="w-full bg-gradient-to-r from-violet-600 to-cyan-500" onClick={() => setAuthDialogOpen(true)}>
-              Get Started
-            </Button>
+            <Button className="w-full bg-gradient-to-r from-violet-600 to-cyan-500" onClick={() => setAuthDialogOpen(true)}>Get Started</Button>
           </div>
         )}
       </nav>
 
-      {/* Hero Section */}
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-4xl mx-auto">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <Badge variant="secondary" className="px-4 py-1">
-                <Sparkles className="h-3 w-3 mr-1" />
-                LLM-Powered
-              </Badge>
-              <Badge variant="secondary" className="px-4 py-1">
-                <FileSpreadsheet className="h-3 w-3 mr-1" />
-                XLSX Support
-              </Badge>
-              <Badge variant="secondary" className="px-4 py-1">
-                <Cloud className="h-3 w-3 mr-1" />
-                Airbyte Ready
-              </Badge>
+              <Badge variant="secondary" className="px-4 py-1"><Sparkles className="h-3 w-3 mr-1" />LLM-Powered</Badge>
+              <Badge variant="secondary" className="px-4 py-1"><FileSpreadsheet className="h-3 w-3 mr-1" />XLSX Support</Badge>
+              <Badge variant="secondary" className="px-4 py-1"><Cloud className="h-3 w-3 mr-1" />Airbyte Ready</Badge>
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
               Build Data Pipelines with{" "}
-              <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">
-                AI
-              </span>{" "}
+              <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">AI</span>{" "}
               — No Coding Required
             </h1>
             <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
@@ -1190,22 +1134,14 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
               AI automatically detects schema, generates dbt models, and creates production-ready pipelines.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button 
-                size="lg" 
-                onClick={() => setAuthDialogOpen(true)}
-                className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600 h-12 px-8"
-              >
-                Get Started Free
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button size="lg" onClick={() => setAuthDialogOpen(true)} className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600 h-12 px-8">
+                Get Started Free <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <Button size="lg" variant="outline" className="h-12 px-8">
-                <Play className="mr-2 h-4 w-4" />
-                Watch Demo
+                <Play className="mr-2 h-4 w-4" />Watch Demo
               </Button>
             </div>
           </div>
-
-          {/* Hero Illustration */}
           <div className="mt-16 relative">
             <div className="absolute inset-0 bg-gradient-to-r from-violet-600/20 to-cyan-500/20 blur-3xl rounded-3xl" />
             <Card className="relative bg-background/50 backdrop-blur border-2 shadow-2xl">
@@ -1224,18 +1160,9 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
                   <p className="font-medium">&quot;Analyze this medical dataset and generate dbt models&quot;</p>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    <span className="text-sm">Detected: MEDICAL dataset (98% confidence)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    <span className="text-sm">Generated: 3 dbt models (staging, intermediate, mart)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    <span className="text-sm">Created: Patient outcomes analytics pipeline</span>
-                  </div>
+                  <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-green-500" /><span className="text-sm">Detected: MEDICAL dataset (98% confidence)</span></div>
+                  <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-green-500" /><span className="text-sm">Generated: 3 dbt models (staging, intermediate, mart)</span></div>
+                  <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-green-500" /><span className="text-sm">Created: Patient outcomes analytics pipeline</span></div>
                 </div>
               </CardContent>
             </Card>
@@ -1243,14 +1170,11 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
       </section>
 
-      {/* Features Section */}
       <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Powerful Features</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to build, manage, and optimize your data pipelines with AI
-            </p>
+            <p className="text-muted-foreground max-w-2xl mx-auto">Everything you need to build, manage, and optimize your data pipelines with AI</p>
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, index) => (
@@ -1268,25 +1192,18 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
       </section>
 
-      {/* How It Works */}
       <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">How It Works</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Four simple steps to transform your data operations
-            </p>
+            <p className="text-muted-foreground max-w-2xl mx-auto">Four simple steps to transform your data operations</p>
           </div>
           <div className="grid gap-8 md:grid-cols-4">
             {steps.map((step, index) => (
               <div key={index} className="relative">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center text-white font-bold">
-                    {step.step}
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className="hidden md:block flex-1 h-0.5 bg-gradient-to-r from-violet-600 to-cyan-500" />
-                  )}
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center text-white font-bold">{step.step}</div>
+                  {index < steps.length - 1 && (<div className="hidden md:block flex-1 h-0.5 bg-gradient-to-r from-violet-600 to-cyan-500" />)}
                 </div>
                 <h3 className="font-semibold text-lg mb-2">{step.title}</h3>
                 <p className="text-muted-foreground">{step.description}</p>
@@ -1296,164 +1213,67 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
       </section>
 
-      {/* Pricing Section */}
       <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">
-              Simple, Transparent{" "}
-              <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">
-                Pricing
-              </span>
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Choose the plan that fits your data needs. Start free and scale as you grow.
-            </p>
+            <h2 className="text-3xl font-bold mb-4">Simple, Transparent <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">Pricing</span></h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">Choose the plan that fits your data needs. Start free and scale as you grow.</p>
           </div>
-
           <div className="grid gap-8 md:grid-cols-3 items-start">
-            {/* Free Tier */}
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-xl">Free</CardTitle>
                 <CardDescription>For individuals exploring data</CardDescription>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">$0</span>
-                  <span className="text-muted-foreground">/month</span>
-                </div>
+                <div className="mt-4"><span className="text-4xl font-bold">$0</span><span className="text-muted-foreground">/month</span></div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <Separator />
-                <ul className="space-y-3">
-                  {[
-                    "5 datasets per month",
-                    "Basic schema detection",
-                    "Manual pipeline creation",
-                    "Community support",
-                    "100MB storage"
-                  ].map((feature) => (
-                    <li key={feature} className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                      <span className="text-sm text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setAuthDialogOpen(true)}
-                >
-                  Get Started
-                </Button>
+                <ul className="space-y-3">{["5 datasets per month","Basic schema detection","Manual pipeline creation","Community support","100MB storage"].map((feature) => (<li key={feature} className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" /><span className="text-sm text-muted-foreground">{feature}</span></li>))}</ul>
+                <Button variant="outline" className="w-full" onClick={() => setAuthDialogOpen(true)}>Get Started</Button>
               </CardContent>
             </Card>
-
-            {/* Pro Tier - Most Popular */}
             <Card className="relative border-2 border-violet-500 shadow-xl hover:shadow-2xl transition-shadow md:scale-105">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-gradient-to-r from-violet-600 to-cyan-500 text-white px-4 py-1 text-xs font-semibold">
-                  <Sparkles className="h-3 w-3 mr-1" />
-                  MOST POPULAR
-                </Badge>
-              </div>
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2"><Badge className="bg-gradient-to-r from-violet-600 to-cyan-500 text-white px-4 py-1 text-xs font-semibold"><Sparkles className="h-3 w-3 mr-1" />MOST POPULAR</Badge></div>
               <CardHeader className="text-center pb-2 pt-6">
                 <CardTitle className="text-xl">Pro</CardTitle>
                 <CardDescription>For teams building at scale</CardDescription>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">$49</span>
-                  <span className="text-muted-foreground">/month</span>
-                </div>
+                <div className="mt-4"><span className="text-4xl font-bold">$49</span><span className="text-muted-foreground">/month</span></div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <Separator />
-                <ul className="space-y-3">
-                  {[
-                    "Unlimited datasets",
-                    "AI-powered analysis (LLM)",
-                    "Auto dbt model generation",
-                    "NL→SQL query",
-                    "10GB storage",
-                    "Priority support",
-                    "Airbyte connections (up to 5)"
-                  ].map((feature) => (
-                    <li key={feature} className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-violet-500 shrink-0 mt-0.5" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className="w-full bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600"
-                  onClick={() => setAuthDialogOpen(true)}
-                >
-                  Start Free Trial
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                <ul className="space-y-3">{["Unlimited datasets","AI-powered analysis (LLM)","Auto dbt model generation","NL→SQL query","10GB storage","Priority support","Airbyte connections (up to 5)"].map((feature) => (<li key={feature} className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-violet-500 shrink-0 mt-0.5" /><span className="text-sm">{feature}</span></li>))}</ul>
+                <Button className="w-full bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600" onClick={() => setAuthDialogOpen(true)}>Start Free Trial <ArrowRight className="ml-2 h-4 w-4" /></Button>
               </CardContent>
             </Card>
-
-            {/* Enterprise Tier */}
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-xl">Enterprise</CardTitle>
                 <CardDescription>For organizations with custom needs</CardDescription>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">Custom</span>
-                </div>
+                <div className="mt-4"><span className="text-4xl font-bold">Custom</span></div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <Separator />
-                <ul className="space-y-3">
-                  {[
-                    "Everything in Pro",
-                    "Unlimited storage",
-                    "Unlimited Airbyte connections",
-                    "Custom AI model training",
-                    "Dedicated support",
-                    "SLA guarantee",
-                    "On-premise deployment option"
-                  ].map((feature) => (
-                    <li key={feature} className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                      <span className="text-sm text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setAuthDialogOpen(true)}
-                >
-                  Contact Sales
-                </Button>
+                <ul className="space-y-3">{["Everything in Pro","Unlimited storage","Unlimited Airbyte connections","Custom AI model training","Dedicated support","SLA guarantee","On-premise deployment option"].map((feature) => (<li key={feature} className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" /><span className="text-sm text-muted-foreground">{feature}</span></li>))}</ul>
+                <Button variant="outline" className="w-full" onClick={() => setAuthDialogOpen(true)}>Contact Sales</Button>
               </CardContent>
             </Card>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
+              <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 h-5 text-white" /></div>
               <span className="font-bold">DataForge AI v3.0</span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              LLM + XLSX + Airbyte — Works with ANY dataset
-            </p>
+            <p className="text-sm text-muted-foreground">LLM + XLSX + Airbyte — Works with ANY dataset</p>
           </div>
         </div>
       </footer>
 
-      <AuthDialog
-        open={authDialogOpen}
-        onOpenChange={setAuthDialogOpen}
-        onSuccess={onGetStarted}
-      />
+      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} onSuccess={onGetStarted} />
     </div>
   );
 }
@@ -1466,17 +1286,8 @@ export default function DataForgeApp() {
   const [activeTab, setActiveTab] = useState("home");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Restore auth session on mount
-  useEffect(() => {
-    restoreSession();
-  }, []);
-
-  // Auto-login if session restored
-  useEffect(() => {
-    if (isAuthenticated) {
-      setCurrentView("app");
-    }
-  }, [isAuthenticated]);
+  useEffect(() => { restoreSession(); }, []);
+  useEffect(() => { if (isAuthenticated) { setCurrentView("app"); } }, [isAuthenticated]);
 
   const handleLogout = () => {
     logout();
@@ -1487,165 +1298,83 @@ export default function DataForgeApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
+  // ✅ FIX: Track selected active file
+  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
-    total_pipelines: 0,
-    total_executions: 0,
-    success_rate: 95.5,
-    tables: 0,
-    reports: 0,
-    data_volume: 0,
-    dataset_type: 'none',
-    current_table: 'none'
+    total_pipelines: 0, total_executions: 0, success_rate: 95.5, tables: 0, reports: 0, data_volume: 0, dataset_type: 'none', current_table: 'none'
   });
-  const [chartData, setChartData] = useState<ChartData>({
-    pipeline_runs: [],
-    primary_chart: [],
-    secondary_chart: [],
-    trend_chart: []
-  });
+  const [chartData, setChartData] = useState<ChartData>({ pipeline_runs: [], primary_chart: [], secondary_chart: [], trend_chart: [] });
   const [schema, setSchema] = useState<SchemaInfo | null>(null);
   const [pipelineStatus, setPipelineStatus] = useState<"idle" | "running" | "success" | "error">("idle");
-  
-  // New state for LLM features
   const [llmAnalysis, setLlmAnalysis] = useState<LLMAnalysis | null>(null);
   const [llmLoading, setLlmLoading] = useState(false);
   const [dbtModels, setDbtModels] = useState<Array<{ path: string; content: string; description: string }> | null>(null);
   const [dbtLoading, setDbtLoading] = useState(false);
 
-  // Fetch initial data
   useEffect(() => {
-    if (currentView === "app") {
-      fetchFiles();
-      fetchStats();
-      fetchChartData();
-      fetchSchema();
-    }
+    if (currentView === "app") { fetchFiles(); fetchStats(); fetchChartData(); fetchSchema(); }
   }, [currentView]);
 
+  // ✅ FIX: Auto-select first uploaded raw file
   const fetchFiles = async () => {
     try {
       const response = await fetch("/api/files");
       const data = await response.json();
-      setFiles(data.files || []);
+      const fetchedFiles = data.files || [];
+      setFiles(fetchedFiles);
+      // Auto-select first raw_data file if no file selected
+      if (!selectedFile) {
+        const rawFiles = fetchedFiles.filter((f: FileItem) => f.category === "raw_data");
+        if (rawFiles.length > 0) {
+          setSelectedFile(rawFiles[rawFiles.length - 1]);
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch files:", error);
     }
   };
 
   const fetchStats = async () => {
-    try {
-      const response = await fetch("/api/dashboard");
-      const data = await response.json();
-      setStats(data);
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    }
+    try { const response = await fetch("/api/dashboard"); const data = await response.json(); setStats(data); } catch (error) { console.error("Failed to fetch stats:", error); }
   };
 
   const fetchChartData = async () => {
-    try {
-      const response = await fetch("/api/dashboard/charts");
-      const data = await response.json();
-      setChartData(data);
-    } catch (error) {
-      console.error("Failed to fetch chart data:", error);
-    }
+    try { const response = await fetch("/api/dashboard/charts"); const data = await response.json(); setChartData(data); } catch (error) { console.error("Failed to fetch chart data:", error); }
   };
 
   const fetchSchema = async () => {
     try {
-      const response = await fetch("/api/schema");
-      const data = await response.json();
-      if (data.schema && data.schema.columns && Object.keys(data.schema.columns).length > 0) {
-        setSchema(data.schema);
-      } else {
-        setSchema(null);
-      }
-    } catch (error) {
-      console.error("Failed to fetch schema:", error);
-      setSchema(null);
-    }
+      const response = await fetch("/api/schema"); const data = await response.json();
+      if (data.schema && data.schema.columns && Object.keys(data.schema.columns).length > 0) { setSchema(data.schema); } else { setSchema(null); }
+    } catch (error) { console.error("Failed to fetch schema:", error); setSchema(null); }
   };
 
-  // LLM Analysis
   const handleLLMAnalysis = async () => {
     setLlmLoading(true);
-    try {
-      const response = await fetch("/api/llm/analyze", { method: "POST" });
-      const data = await response.json();
-      setLlmAnalysis(data.analysis);
-    } catch (error) {
-      console.error("LLM analysis failed:", error);
-    } finally {
-      setLlmLoading(false);
-    }
+    try { const response = await fetch("/api/llm/analyze", { method: "POST" }); const data = await response.json(); setLlmAnalysis(data.analysis); } catch (error) { console.error("LLM analysis failed:", error); } finally { setLlmLoading(false); }
   };
 
-  // Generate dbt Models
   const handleGenerateDBT = async () => {
     setDbtLoading(true);
-    try {
-      const response = await fetch("/api/llm/generate-dbt", { method: "POST" });
-      const data = await response.json();
-      setDbtModels(data.models);
-      fetchFiles(); // Refresh files to show new dbt models
-    } catch (error) {
-      console.error("dbt generation failed:", error);
-    } finally {
-      setDbtLoading(false);
-    }
+    try { const response = await fetch("/api/llm/generate-dbt", { method: "POST" }); const data = await response.json(); setDbtModels(data.models); fetchFiles(); } catch (error) { console.error("dbt generation failed:", error); } finally { setDbtLoading(false); }
   };
 
-  // Agent execution
   const handleExecuteCommand = async (command: string) => {
-    setIsLoading(true);
-    setPipelineStatus("running");
-    
+    setIsLoading(true); setPipelineStatus("running");
     try {
-      const response = await fetch("/api/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command })
-      });
-      
-      const result = await response.json();
-      setExecutionResult(result);
-      setPipelineStatus(result.status === "success" ? "success" : "error");
-      
-      // Refresh data after execution
-      setTimeout(() => {
-        fetchFiles();
-        fetchStats();
-        fetchChartData();
-        fetchSchema();
-      }, 1000);
-    } catch (error) {
-      console.error("Execution error:", error);
-      setPipelineStatus("error");
-    } finally {
-      setIsLoading(false);
-    }
+      const response = await fetch("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command }) });
+      const result = await response.json(); setExecutionResult(result); setPipelineStatus(result.status === "success" ? "success" : "error");
+      setTimeout(() => { fetchFiles(); fetchStats(); fetchChartData(); fetchSchema(); }, 1000);
+    } catch (error) { console.error("Execution error:", error); setPipelineStatus("error"); } finally { setIsLoading(false); }
   };
 
-  // Query execution
   const handleQuery = async (question: string): Promise<QueryResult> => {
-    const response = await fetch("/api/query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question })
-    });
-    
+    const response = await fetch("/api/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
     const result = await response.json();
-    
-    // Update schema if returned
-    if (result.schema_info) {
-      setSchema(result.schema_info);
-    }
-    
+    if (result.schema_info) { setSchema(result.schema_info); }
     return result;
   };
 
-  // Sidebar navigation
   const sidebarItems = [
     { id: "home", label: "Home", icon: Home },
     { id: "upload", label: "Upload Data", icon: Upload },
@@ -1661,167 +1390,96 @@ export default function DataForgeApp() {
     { id: "files", label: "Files", icon: FolderOpen },
   ];
 
-  // Render landing page
-  if (currentView === "landing") {
-    return <LandingPage onGetStarted={() => setCurrentView("app")} />;
-  }
+  if (currentView === "landing") { return <LandingPage onGetStarted={() => setCurrentView("app")} />; }
 
-  // Main App Layout
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Mobile Header */}
       <header className="lg:hidden sticky top-0 z-50 bg-background border-b">
         <div className="flex items-center justify-between h-14 px-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}><Menu className="h-5 w-5" /></Button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 w-5 text-white" />
-            </div>
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 w-5 text-white" /></div>
             <span className="font-bold">DataForge</span>
-            {stats.dataset_type && stats.dataset_type !== 'none' && (
-              <Badge variant="outline" className="text-xs">{stats.dataset_type}</Badge>
-            )}
+            {selectedFile && <Badge variant="outline" className="text-xs max-w-[100px] truncate">{selectedFile.name}</Badge>}
+            {stats.dataset_type && stats.dataset_type !== 'none' && !selectedFile && <Badge variant="outline" className="text-xs">{stats.dataset_type}</Badge>}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
+          <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </div>
       </header>
 
-      {/* Mobile Sidebar Overlay */}
-      {mobileSidebarOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-50 bg-black/50"
-          onClick={() => setMobileSidebarOpen(false)}
-        />
-      )}
+      {mobileSidebarOpen && (<div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setMobileSidebarOpen(false)} />)}
 
-      {/* Mobile Sidebar */}
-      <aside
-        className={`
-          lg:hidden fixed top-0 left-0 z-50 h-full w-64 bg-background border-r transform transition-transform
-          ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
-      >
+      <aside className={`lg:hidden fixed top-0 left-0 z-50 h-full w-64 bg-background border-r transform transition-transform ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-2 h-14 px-4 border-b">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
-            </div>
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 h-5 text-white" /></div>
             <span className="font-bold">DataForge AI</span>
           </div>
           <ScrollArea className="flex-1 p-2">
             <nav className="space-y-1">
               {sidebarItems.map((item) => (
-                <Button
-                  key={item.id}
-                  variant={activeTab === item.id ? "secondary" : "ghost"}
-                  className="w-full justify-start gap-3"
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileSidebarOpen(false);
-                  }}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
+                <Button key={item.id} variant={activeTab === item.id ? "secondary" : "ghost"} className="w-full justify-start gap-3" onClick={() => { setActiveTab(item.id); setMobileSidebarOpen(false); }}>
+                  <item.icon className="h-5 w-5" />{item.label}
                 </Button>
               ))}
             </nav>
           </ScrollArea>
           <div className="p-2 border-t">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 text-red-500"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-5 w-5" />
-              Logout
-            </Button>
+            <Button variant="ghost" className="w-full justify-start gap-3 text-red-500" onClick={handleLogout}><LogOut className="h-5 w-5" />Logout</Button>
           </div>
         </div>
       </aside>
 
-      {/* Desktop Layout */}
       <div className="flex flex-1">
-        {/* Desktop Sidebar */}
         <aside className="hidden lg:flex flex-col w-64 border-r bg-background">
           <div className="flex items-center gap-2 h-14 px-4 border-b">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
-            </div>
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 h-5 text-white" /></div>
             <span className="font-bold">DataForge AI</span>
           </div>
           <ScrollArea className="flex-1 p-2">
             <nav className="space-y-1">
               {sidebarItems.map((item) => (
-                <Button
-                  key={item.id}
-                  variant={activeTab === item.id ? "secondary" : "ghost"}
-                  className="w-full justify-start gap-3"
-                  onClick={() => setActiveTab(item.id)}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
+                <Button key={item.id} variant={activeTab === item.id ? "secondary" : "ghost"} className="w-full justify-start gap-3" onClick={() => setActiveTab(item.id)}>
+                  <item.icon className="h-5 w-5" />{item.label}
                 </Button>
               ))}
             </nav>
           </ScrollArea>
           <div className="p-2 border-t space-y-1">
-            {stats.dataset_type && stats.dataset_type !== 'none' && (
-              <div className="px-3 py-2 text-xs text-muted-foreground">
-                Current Dataset: <Badge variant="outline">{stats.dataset_type}</Badge>
+            {selectedFile && (
+              <div className="px-3 py-2 text-xs text-muted-foreground flex items-center gap-1">
+                <FileSpreadsheet className="h-3 w-3 text-green-500" />
+                <span className="truncate">{selectedFile.name}</span>
               </div>
+            )}
+            {stats.dataset_type && stats.dataset_type !== 'none' && !selectedFile && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Current Dataset: <Badge variant="outline">{stats.dataset_type}</Badge></div>
             )}
             {stats.features && (
               <div className="px-3 py-1 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Bot className="h-3 w-3" />
-                  LLM: {stats.features.llm_enabled ? "✓" : "✗"}
-                </div>
-                <div className="flex items-center gap-1">
-                  <FileSpreadsheet className="h-3 w-3" />
-                  XLSX: {stats.features.xlsx_support ? "✓" : "✗"}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Cloud className="h-3 w-3" />
-                  Airbyte: {stats.features.airbyte_connected ? "✓" : "✗"}
-                </div>
+                <div className="flex items-center gap-1"><Bot className="h-3 w-3" />LLM: {stats.features.llm_enabled ? "✓" : "✗"}</div>
+                <div className="flex items-center gap-1"><FileSpreadsheet className="h-3 w-3" />XLSX: {stats.features.xlsx_support ? "✓" : "✗"}</div>
+                <div className="flex items-center gap-1"><Cloud className="h-3 w-3" />Airbyte: {stats.features.airbyte_connected ? "✓" : "✗"}</div>
               </div>
             )}
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            <Button variant="ghost" className="w-full justify-start gap-3" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}{theme === "dark" ? "Light Mode" : "Dark Mode"}
             </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 text-red-500 hover:text-red-600"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-5 w-5" />
-              Logout
-            </Button>
+            <Button variant="ghost" className="w-full justify-start gap-3 text-red-500 hover:text-red-600" onClick={handleLogout}><LogOut className="h-5 w-5" />Logout</Button>
           </div>
         </aside>
 
-        {/* Main Content */}
         <main className="flex-1 overflow-auto">
           <ScrollArea className="h-[calc(100vh-3.5rem)] lg:h-screen">
             <div className="p-4 md:p-6 lg:p-8 space-y-6">
-              
+
+              {/* ✅ FIX: Active File Bar - shows on EVERY tab */}
+              {selectedFile && (
+                <ActiveFileBar file={selectedFile} onClear={() => setSelectedFile(null)} onPreview={() => setActiveTab("files")} />
+              )}
+
               {/* Home Tab */}
               {activeTab === "home" && (
                 <>
@@ -1829,7 +1487,7 @@ export default function DataForgeApp() {
                     <div>
                       <h1 className="text-2xl font-bold">Welcome back! 👋</h1>
                       <p className="text-muted-foreground">
-                        {schema ? `Working with ${schema.dataset_type} dataset` : 'Upload a dataset to get started'}
+                        {selectedFile ? `Working with ${selectedFile.name}` : schema ? `Working with ${schema.dataset_type} dataset` : 'Upload a dataset to get started'}
                       </p>
                     </div>
                   </div>
@@ -1837,89 +1495,45 @@ export default function DataForgeApp() {
                   {!schema ? (
                     <Card className="border-dashed">
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Upload className="h-5 w-5" />
-                          Get Started
-                        </CardTitle>
-                        <CardDescription>
-                          Upload a CSV, JSON, or Excel file, or try a sample dataset
-                        </CardDescription>
+                        <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5" />Get Started</CardTitle>
+                        <CardDescription>Upload a CSV, JSON, or Excel file, or try a sample dataset</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <FileUploader onUploadComplete={() => { fetchSchema(); fetchStats(); }} />
-                        <div className="flex items-center gap-2">
-                          <Separator className="flex-1" />
-                          <span className="text-sm text-muted-foreground">or try sample data</span>
-                          <Separator className="flex-1" />
-                        </div>
-                        <SampleDatasets onSelect={() => { fetchSchema(); fetchStats(); fetchChartData(); }} />
+                        <FileUploader onUploadComplete={() => { fetchFiles(); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                        <div className="flex items-center gap-2"><Separator className="flex-1" /><span className="text-sm text-muted-foreground">or try sample data</span><Separator className="flex-1" /></div>
+                        {/* ✅ FIX: Hide samples when file is uploaded */}
+                        {!selectedFile && (
+                          <SampleDatasets onSelect={(name: string) => { setSelectedFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                        )}
                       </CardContent>
                     </Card>
                   ) : (
                     <>
                       <div className="flex items-center gap-2">
-                        <Button onClick={handleLLMAnalysis} disabled={llmLoading}>
-                          {llmLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bot className="h-4 w-4 mr-2" />}
-                          Analyze with AI
-                        </Button>
-                        <Button onClick={handleGenerateDBT} disabled={dbtLoading} variant="outline">
-                          {dbtLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Code className="h-4 w-4 mr-2" />}
-                          Generate dbt Models
-                        </Button>
+                        <Button onClick={handleLLMAnalysis} disabled={llmLoading}>{llmLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bot className="h-4 w-4 mr-2" />}Analyze with AI</Button>
+                        <Button onClick={handleGenerateDBT} disabled={dbtLoading} variant="outline">{dbtLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Code className="h-4 w-4 mr-2" />}Generate dbt Models</Button>
                       </div>
-
-                      <CommandBox 
-                        onExecute={handleExecuteCommand} 
-                        isLoading={isLoading}
-                      />
-
+                      <CommandBox onExecute={handleExecuteCommand} isLoading={isLoading} />
                       {executionResult && (
                         <Card>
                           <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              {executionResult.status === "success" ? (
-                                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                              ) : (
-                                <X className="h-5 w-5 text-red-500" />
-                              )}
-                              Execution Result
-                            </CardTitle>
+                            <CardTitle className="flex items-center gap-2">{executionResult.status === "success" ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <X className="h-5 w-5 text-red-500" />}Execution Result</CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-4">
                             <div className="flex items-center gap-4 text-sm">
-                              <Badge variant={executionResult.status === "success" ? "default" : "destructive"}>
-                                {executionResult.status}
-                              </Badge>
-                              {executionResult.duration && (
-                                <span className="text-muted-foreground">
-                                  Completed in {executionResult.duration.toFixed(2)}s
-                                </span>
-                              )}
+                              <Badge variant={executionResult.status === "success" ? "default" : "destructive"}>{executionResult.status}</Badge>
+                              {executionResult.duration && (<span className="text-muted-foreground">Completed in {executionResult.duration.toFixed(2)}s</span>)}
                             </div>
-                            
                             {executionResult.logs && executionResult.logs.length > 0 && (
                               <div className="bg-muted rounded-lg p-4">
                                 <p className="text-sm font-medium mb-2">Execution Logs:</p>
-                                <div className="space-y-1 max-h-40 overflow-y-auto">
-                                  {executionResult.logs.map((log, i) => (
-                                    <p key={i} className="text-sm text-muted-foreground font-mono">
-                                      {log}
-                                    </p>
-                                  ))}
-                                </div>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">{executionResult.logs.map((log, i) => (<p key={i} className="text-sm text-muted-foreground font-mono">{log}</p>))}</div>
                               </div>
                             )}
-
                             {executionResult.files && executionResult.files.length > 0 && (
                               <div>
                                 <p className="text-sm font-medium mb-2">Generated Files:</p>
-                                <div className="grid gap-2 md:grid-cols-2">
-                                  {executionResult.files.map((file, i) => (
-                                    <Badge key={i} variant="secondary">
-                                      {file}
-                                    </Badge>
-                                  ))}
-                                </div>
+                                <div className="grid gap-2 md:grid-cols-2">{executionResult.files.map((file, i) => (<Badge key={i} variant="secondary">{file}</Badge>))}</div>
                               </div>
                             )}
                           </CardContent>
@@ -1927,7 +1541,6 @@ export default function DataForgeApp() {
                       )}
                     </>
                   )}
-
                   <StatsCards stats={stats} />
                 </>
               )}
@@ -1935,37 +1548,22 @@ export default function DataForgeApp() {
               {/* Upload Tab */}
               {activeTab === "upload" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <Upload className="h-6 w-6 text-violet-500" />
-                    <h1 className="text-2xl font-bold">Upload Data</h1>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Upload any CSV, JSON, or Excel file. The system will automatically detect the schema.
-                  </p>
-
-                  <FileUploader onUploadComplete={() => { fetchSchema(); fetchStats(); fetchChartData(); }} />
-
-                  <div className="flex items-center gap-2">
-                    <Separator className="flex-1" />
-                    <span className="text-sm text-muted-foreground">or try sample datasets</span>
-                    <Separator className="flex-1" />
-                  </div>
-
-                  <SampleDatasets onSelect={() => { fetchSchema(); fetchStats(); fetchChartData(); }} />
+                  <div className="flex items-center gap-2"><Upload className="h-6 w-6 text-violet-500" /><h1 className="text-2xl font-bold">Upload Data</h1></div>
+                  <p className="text-muted-foreground">Upload any CSV, JSON, or Excel file. The system will automatically detect the schema.</p>
+                  <FileUploader onUploadComplete={() => { fetchFiles(); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                  <div className="flex items-center gap-2"><Separator className="flex-1" /><span className="text-sm text-muted-foreground">or try sample datasets</span><Separator className="flex-1" /></div>
+                  {/* ✅ FIX: Hide samples when file is uploaded */}
+                  {!selectedFile && (
+                    <SampleDatasets onSelect={(name: string) => { setSelectedFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                  )}
                 </>
               )}
 
               {/* Schema Tab */}
               {activeTab === "schema" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <Table className="h-6 w-6 text-blue-500" />
-                    <h1 className="text-2xl font-bold">Detected Schema</h1>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Schema is automatically detected from your uploaded data.
-                  </p>
-
+                  <div className="flex items-center gap-2"><Table className="h-6 w-6 text-blue-500" /><h1 className="text-2xl font-bold">Detected Schema</h1></div>
+                  <p className="text-muted-foreground">Schema is automatically detected from your uploaded data.</p>
                   <SchemaDisplay schema={schema} />
                 </>
               )}
@@ -1974,19 +1572,10 @@ export default function DataForgeApp() {
               {activeTab === "analysis" && (
                 <>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Bot className="h-6 w-6 text-violet-500" />
-                      <h1 className="text-2xl font-bold">AI Analysis</h1>
-                    </div>
-                    <Button onClick={handleLLMAnalysis} disabled={llmLoading || !schema}>
-                      {llmLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                      Analyze with AI
-                    </Button>
+                    <div className="flex items-center gap-2"><Bot className="h-6 w-6 text-violet-500" /><h1 className="text-2xl font-bold">AI Analysis</h1></div>
+                    <Button onClick={handleLLMAnalysis} disabled={llmLoading || !schema}>{llmLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}Analyze with AI</Button>
                   </div>
-                  <p className="text-muted-foreground">
-                    LLM-powered intelligent analysis of your dataset.
-                  </p>
-
+                  <p className="text-muted-foreground">LLM-powered intelligent analysis of your dataset.</p>
                   <LLMAnalysisDisplay analysis={llmAnalysis} isLoading={llmLoading} />
                 </>
               )}
@@ -1994,81 +1583,29 @@ export default function DataForgeApp() {
               {/* Agent Tab */}
               {activeTab === "agent" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-6 w-6 text-violet-500" />
-                    <h1 className="text-2xl font-bold">Agent Workspace</h1>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Tell the AI agent what to do — ingest, analyze, query, generate dbt models, run pipelines, and more.
-                  </p>
-
+                  <div className="flex items-center gap-2"><Zap className="h-6 w-6 text-violet-500" /><h1 className="text-2xl font-bold">Agent Workspace</h1></div>
+                  <p className="text-muted-foreground">Tell the AI agent what to do — ingest, analyze, query, generate dbt models, run pipelines, and more.</p>
                   {schema ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Info className="h-4 w-4" />
-                      Working with <Badge variant="outline">{schema.dataset_type}</Badge> dataset — {Object.keys(schema.columns).length} columns detected
-                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground"><Info className="h-4 w-4" />Working with <Badge variant="outline">{schema.dataset_type}</Badge> dataset — {Object.keys(schema.columns).length} columns detected</div>
                   ) : (
                     <Card className="border border-amber-500/30 bg-amber-500/5">
-                      <CardContent className="flex items-center gap-3 py-3 px-4">
-                        <Upload className="h-5 w-5 text-amber-500 shrink-0" />
-                        <p className="text-sm text-amber-700 dark:text-amber-400">
-                          No dataset loaded. <Button variant="link" className="h-auto p-0 text-amber-700 dark:text-amber-400 underline" onClick={() => setActiveTab("upload")}>Upload data</Button> first, or use the commands below to get started.
-                        </p>
-                      </CardContent>
+                      <CardContent className="flex items-center gap-3 py-3 px-4"><Upload className="h-5 w-5 text-amber-500 shrink-0" /><p className="text-sm text-amber-700 dark:text-amber-400">No dataset loaded. <Button variant="link" className="h-auto p-0 text-amber-700 dark:text-amber-400 underline" onClick={() => setActiveTab("upload")}>Upload data</Button> first, or use the commands below to get started.</p></CardContent>
                     </Card>
                   )}
-
-                  <CommandBox 
-                    onExecute={handleExecuteCommand} 
-                    isLoading={isLoading}
-                    suggestedCommands={schema ? [
-                      `Analyze the ${schema.dataset_type} dataset`,
-                      "Run full data pipeline",
-                      "Generate dbt transformation models",
-                      "Show top 10 records",
-                    ] : undefined}
-                  />
-
+                  <CommandBox onExecute={handleExecuteCommand} isLoading={isLoading} suggestedCommands={schema ? [`Analyze the ${schema.dataset_type} dataset`,"Run full data pipeline","Generate dbt transformation models","Show top 10 records"] : undefined} />
                   {executionResult && (
                     <Card className="shadow-lg">
                       <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="flex items-center gap-2">
-                            <Play className="h-5 w-5 text-green-500" />
-                            Agent Output
-                          </CardTitle>
-                          <Badge variant={executionResult.status === "success" ? "default" : "destructive"}>
-                            {executionResult.status}
-                          </Badge>
-                        </div>
-                        <CardDescription>
-                          Files generated by DataForge Agent
-                        </CardDescription>
+                        <div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2"><Play className="h-5 w-5 text-green-500" />Agent Output</CardTitle><Badge variant={executionResult.status === "success" ? "default" : "destructive"}>{executionResult.status}</Badge></div>
+                        <CardDescription>Files generated by DataForge Agent</CardDescription>
                       </CardHeader>
                       <CardContent>
                         {executionResult.logs && executionResult.logs.length > 0 && (
-                          <div className="mb-4 p-3 bg-muted rounded-lg max-h-48 overflow-y-auto">
-                            <p className="text-xs font-semibold text-muted-foreground mb-2">Execution Log</p>
-                            {executionResult.logs.map((log, i) => (
-                              <p key={i} className="text-xs font-mono text-muted-foreground">{log}</p>
-                            ))}
-                          </div>
+                          <div className="mb-4 p-3 bg-muted rounded-lg max-h-48 overflow-y-auto"><p className="text-xs font-semibold text-muted-foreground mb-2">Execution Log</p>{executionResult.logs.map((log, i) => (<p key={i} className="text-xs font-mono text-muted-foreground">{log}</p>))}</div>
                         )}
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                          {files.map((file, i) => (
-                            <FileCard
-                              key={i}
-                              file={file}
-                              status={executionResult.status === "success" ? "success" : "error"}
-                            />
-                          ))}
-                          {files.length === 0 && isLoading && (
-                            <>
-                              <FileCardSkeleton />
-                              <FileCardSkeleton />
-                              <FileCardSkeleton />
-                            </>
-                          )}
+                          {files.map((file, i) => (<FileCard key={i} file={file} status={executionResult.status === "success" ? "success" : "error"} />))}
+                          {files.length === 0 && isLoading && (<><FileCardSkeleton /><FileCardSkeleton /><FileCardSkeleton /></>)}
                         </div>
                       </CardContent>
                     </Card>
@@ -2079,10 +1616,7 @@ export default function DataForgeApp() {
               {/* Pipelines Tab */}
               {activeTab === "pipelines" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="h-6 w-6 text-blue-500" />
-                    <h1 className="text-2xl font-bold">Pipelines</h1>
-                  </div>
+                  <div className="flex items-center gap-2"><GitBranch className="h-6 w-6 text-blue-500" /><h1 className="text-2xl font-bold">Pipelines</h1></div>
                   <PipelineDAG />
                 </>
               )}
@@ -2090,20 +1624,8 @@ export default function DataForgeApp() {
               {/* dbt Models Tab */}
               {activeTab === "dbt" && (
                 <>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Code className="h-6 w-6 text-orange-500" />
-                      <h1 className="text-2xl font-bold">dbt Models</h1>
-                    </div>
-                    <Button onClick={handleGenerateDBT} disabled={dbtLoading || !schema}>
-                      {dbtLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                      Generate dbt Models
-                    </Button>
-                  </div>
-                  <p className="text-muted-foreground">
-                    AI-generated dbt transformation models for your data.
-                  </p>
-
+                  <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Code className="h-6 w-6 text-orange-500" /><h1 className="text-2xl font-bold">dbt Models</h1></div><Button onClick={handleGenerateDBT} disabled={dbtLoading || !schema}>{dbtLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}Generate dbt Models</Button></div>
+                  <p className="text-muted-foreground">AI-generated dbt transformation models for your data.</p>
                   <DBTModelsDisplay models={dbtModels} isLoading={dbtLoading} />
                 </>
               )}
@@ -2111,89 +1633,40 @@ export default function DataForgeApp() {
               {/* Airbyte Tab */}
               {activeTab === "airbyte" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <Cloud className="h-6 w-6 text-cyan-500" />
-                    <h1 className="text-2xl font-bold">Data Sources</h1>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Connect to 300+ data sources via Airbyte integration.
-                  </p>
-
+                  <div className="flex items-center gap-2"><Cloud className="h-6 w-6 text-cyan-500" /><h1 className="text-2xl font-bold">Data Sources</h1></div>
+                  <p className="text-muted-foreground">Connect to 300+ data sources via Airbyte integration.</p>
                   <AirbyteConnectorManager />
                 </>
               )}
 
               {/* Warehouse Tab */}
-              {activeTab === "warehouse" && (
-                <WarehouseView />
-              )}
+              {activeTab === "warehouse" && <WarehouseView />}
 
               {/* Reports Tab */}
               {activeTab === "reports" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-6 w-6 text-purple-500" />
-                    <h1 className="text-2xl font-bold">Reports</h1>
-                  </div>
-                  <p className="text-muted-foreground">
-                    View generated reports and analytics outputs.
-                  </p>
-                  <FileExplorer filterCategory="report" />
+                  <div className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-purple-500" /><h1 className="text-2xl font-bold">Reports</h1></div>
+                  <p className="text-muted-foreground">View generated reports and analytics outputs.</p>
+                  <FileExplorer filterCategory="report" onSelectFile={setSelectedFile} activeFilePath={selectedFile?.path} />
                 </>
               )}
 
               {/* Query Tab */}
               {activeTab === "query" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-6 w-6 text-amber-500" />
-                    <h1 className="text-2xl font-bold">Query Data</h1>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Ask questions in plain English — the AI converts them to SQL and runs them against your data warehouse.
-                  </p>
-
+                  <div className="flex items-center gap-2"><FileText className="h-6 w-6 text-amber-500" /><h1 className="text-2xl font-bold">Query Data</h1></div>
+                  <p className="text-muted-foreground">Ask questions in plain English — the AI converts them to SQL and runs them against your data warehouse.</p>
                   {!schema && (
                     <Card className="border border-amber-500/30 bg-amber-500/5">
-                      <CardContent className="flex items-center gap-3 py-3 px-4">
-                        <Upload className="h-5 w-5 text-amber-500 shrink-0" />
-                        <p className="text-sm text-amber-700 dark:text-amber-400">
-                          No dataset loaded yet. <Button variant="link" className="h-auto p-0 text-amber-700 dark:text-amber-400 underline" onClick={() => setActiveTab("upload")}>Upload data</Button> to enable AI-powered queries.
-                        </p>
-                      </CardContent>
+                      <CardContent className="flex items-center gap-3 py-3 px-4"><Upload className="h-5 w-5 text-amber-500 shrink-0" /><p className="text-sm text-amber-700 dark:text-amber-400">No dataset loaded yet. <Button variant="link" className="h-auto p-0 text-amber-700 dark:text-amber-400 underline" onClick={() => setActiveTab("upload")}>Upload data</Button> to enable AI-powered queries.</p></CardContent>
                     </Card>
                   )}
-
-                  <QueryBox 
-                    onQuery={handleQuery} 
-                  />
-
+                  <QueryBox onQuery={handleQuery} />
                   {schema && schema.suggested_queries && schema.suggested_queries.length > 0 && (
                     <Card className="shadow-lg">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-violet-500" />
-                          AI-Suggested Queries for Your {schema.dataset_type.charAt(0).toUpperCase() + schema.dataset_type.slice(1)} Data
-                        </CardTitle>
-                        <CardDescription>Click any suggestion to run it instantly</CardDescription>
-                      </CardHeader>
+                      <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4 text-violet-500" />AI-Suggested Queries for Your {schema.dataset_type.charAt(0).toUpperCase() + schema.dataset_type.slice(1)} Data</CardTitle><CardDescription>Click any suggestion to run it instantly</CardDescription></CardHeader>
                       <CardContent>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {schema.suggested_queries.map((query, i) => (
-                            <Card
-                              key={i}
-                              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all p-4 border"
-                              onClick={() => handleQuery(query)}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-violet-500/10">
-                                  <Search className="h-4 w-4 text-violet-500" />
-                                </div>
-                                <p className="text-sm font-medium">{query}</p>
-                              </div>
-                            </Card>
-                          ))}
-                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">{schema.suggested_queries.map((query, i) => (<Card key={i} className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all p-4 border" onClick={() => handleQuery(query)}><div className="flex items-center gap-3"><div className="p-2 rounded-lg bg-violet-500/10"><Search className="h-4 w-4 text-violet-500" /></div><p className="text-sm font-medium">{query}</p></div></Card>))}</div>
                       </CardContent>
                     </Card>
                   )}
@@ -2203,11 +1676,9 @@ export default function DataForgeApp() {
               {/* Files Tab */}
               {activeTab === "files" && (
                 <>
-                  <div className="flex items-center gap-2">
-                    <FolderOpen className="h-6 w-6 text-teal-500" />
-                    <h1 className="text-2xl font-bold">All Files</h1>
-                  </div>
-                  <FileExplorer />
+                  <div className="flex items-center gap-2"><FolderOpen className="h-6 w-6 text-teal-500" /><h1 className="text-2xl font-bold">All Files</h1></div>
+                  {/* ✅ FIX: Pass props so clicking a file sets it as active */}
+                  <FileExplorer onSelectFile={setSelectedFile} activeFilePath={selectedFile?.path} />
                 </>
               )}
             </div>

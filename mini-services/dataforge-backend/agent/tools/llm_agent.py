@@ -2,11 +2,15 @@
 DataForge AI - LLM Agent (LangChain Rewrite)
 Uses LangChain ChatOpenAI with structured output for all LLM interactions.
 Provides dataset analysis, NL→SQL, dbt model generation, and pipeline generation.
+
+FALLBACK SUPPORT: If the primary LLM fails (timeout, rate limit, API error),
+automatically retries with a secondary fallback model. Max 2 attempts total.
 """
 
 import os
 import json
 import re
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
@@ -28,6 +32,8 @@ from agent.utils import (
     DBT_DIR,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class LLMAgent:
     """LLM-powered agent for intelligent data engineering operations.
@@ -37,19 +43,21 @@ class LLMAgent:
     generation when the LLM is unavailable.
     """
 
-    # ── Session memory: session_id -> list of messages (capped at MAX_SESSION_MESSAGES) ──
     _MAX_SESSION_MESSAGES = 20
     _sessions: Dict[str, List[Dict[str, str]]] = {}
 
     def __init__(self) -> None:
-        """Initialize three ChatOpenAI instances with different temperatures.
-
-        If OPENAI_API_KEY is not set, all three LLMs remain None and the
-        agent will exclusively use fallback heuristics.
-        """
+        # ── Primary LLM config ──
         self.api_base: str = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
         self.api_key: str = os.getenv("OPENAI_API_KEY", "")
         self.model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+        # ── Fallback LLM config ──
+        self.fallback_api_key: str = os.getenv("FALLBACK_API_KEY", "")
+        self.fallback_api_base: str = os.getenv("FALLBACK_API_BASE", "")
+        self.fallback_model: str = os.getenv("FALLBACK_MODEL", "")
+        self._fallback_configured: bool = bool(self.fallback_model)
+
         self._available: bool = bool(self.api_key)
 
         if self._available:
@@ -60,46 +68,111 @@ class LLMAgent:
                 "max_retries": 3,
                 "timeout": 60,
             }
-            self.llm_sql: Optional[ChatOpenAI] = ChatOpenAI(
-                temperature=0.0, **common_kwargs
-            )
-            self.llm_analysis: Optional[ChatOpenAI] = ChatOpenAI(
-                temperature=0.3, **common_kwargs
-            )
-            self.llm_general: Optional[ChatOpenAI] = ChatOpenAI(
-                temperature=0.7, **common_kwargs
-            )
+            self.llm_sql: Optional[ChatOpenAI] = ChatOpenAI(temperature=0.0, **common_kwargs)
+            self.llm_analysis: Optional[ChatOpenAI] = ChatOpenAI(temperature=0.3, **common_kwargs)
+            self.llm_general: Optional[ChatOpenAI] = ChatOpenAI(temperature=0.7, **common_kwargs)
         else:
             self.llm_sql = None
             self.llm_analysis = None
             self.llm_general = None
 
+        # ── Create fallback LLM instances if configured ──
+        self.llm_sql_fallback: Optional[ChatOpenAI] = None
+        self.llm_analysis_fallback: Optional[ChatOpenAI] = None
+        self.llm_general_fallback: Optional[ChatOpenAI] = None
+
+        if self._fallback_configured:
+            fb_kwargs = {
+                "model": self.fallback_model,
+                "api_key": self.fallback_api_key or self.api_key,
+                "base_url": self.fallback_api_base or self.api_base,
+                "max_retries": 2,
+                "timeout": 60,
+            }
+            self.llm_sql_fallback = ChatOpenAI(temperature=0.0, **fb_kwargs)
+            self.llm_analysis_fallback = ChatOpenAI(temperature=0.3, **fb_kwargs)
+            self.llm_general_fallback = ChatOpenAI(temperature=0.7, **fb_kwargs)
+            logger.info(
+                f"Fallback LLM configured: {self.fallback_model} @ "
+                f"{self.fallback_api_base or self.api_base}"
+            )
+
     # ── Session memory helpers ────────────────────────────────────────────────
 
     def _session_messages(self, session_id: str) -> List[Dict[str, str]]:
-        """Return the message list for *session_id*, creating it if needed."""
         if session_id not in self._sessions:
             self._sessions[session_id] = []
         return self._sessions[session_id]
 
     def _push_session(self, session_id: str, role: str, content: str) -> None:
-        """Append a message to the session and trim to max length."""
         msgs = self._session_messages(session_id)
         msgs.append({"role": role, "content": content})
-        # Keep only the last N messages (preserve recent context)
         if len(msgs) > self._MAX_SESSION_MESSAGES:
             del msgs[: len(msgs) - self._MAX_SESSION_MESSAGES]
+
+    # ── Fallback helper ─────────────────────────────────────────────────────
+
+    async def _invoke_llm_with_fallback(
+        self,
+        primary_llm: Optional[ChatOpenAI],
+        fallback_llm: Optional[ChatOpenAI],
+        messages: List[Dict[str, str]],
+        structured_output_type: Optional[Any] = None,
+    ) -> Any:
+        """Try primary LLM, fall back to secondary on failure."""
+        if primary_llm is None and fallback_llm is None:
+            raise RuntimeError("No LLM available — primary and fallback both unconfigured")
+
+        # ── Attempt 1: Primary ──
+        if primary_llm is not None:
+            try:
+                if structured_output_type:
+                    chain = primary_llm.with_structured_output(structured_output_type)
+                    result = await chain.ainvoke(messages)
+                else:
+                    response = await primary_llm.ainvoke(messages)
+                    result = response.content
+                logger.info(f"[Primary] {primary_llm.model} succeeded")
+                return result
+            except Exception as e:
+                logger.warning(f"[Primary] {primary_llm.model} failed: {type(e).__name__}: {e}")
+        else:
+            logger.warning("[Primary] No primary LLM configured")
+
+        # ── Attempt 2: Fallback ──
+        if fallback_llm is not None:
+            try:
+                logger.info(f"[Fallback] Trying {fallback_llm.model}...")
+                if structured_output_type:
+                    chain = fallback_llm.with_structured_output(structured_output_type)
+                    result = await chain.ainvoke(messages)
+                else:
+                    response = await fallback_llm.ainvoke(messages)
+                    result = response.content
+                logger.info(f"[Fallback] {fallback_llm.model} succeeded")
+                return result
+            except Exception as e:
+                logger.error(f"[Fallback] {fallback_llm.model} also failed: {type(e).__name__}: {e}")
+        else:
+            logger.warning("[Fallback] No fallback LLM configured")
+
+        raise RuntimeError(
+            f"Both primary and fallback LLMs failed. "
+            f"Primary: {self.model}, Fallback: {self.fallback_model or 'not configured'}"
+        )
 
     # ── Health check ──────────────────────────────────────────────────────────
 
     def check_health(self) -> Dict[str, Any]:
-        """Return LLM availability status."""
         return {
             "available": self._available,
             "model": self.model if self._available else None,
             "api_base": self.api_base if self._available else None,
             "api_key_set": bool(self.api_key),
             "sessions_active": len(self._sessions),
+            "fallback_configured": self._fallback_configured,
+            "fallback_model": self.fallback_model if self._fallback_configured else None,
+            "fallback_api_base": self.fallback_api_base if self._fallback_configured else None,
         }
 
     # ── Dataset Analysis ──────────────────────────────────────────────────────
@@ -110,10 +183,6 @@ class LLMAgent:
         sample_data: List[Dict],
         session_id: str = "default",
     ) -> Dict[str, Any]:
-        """Use LLM to analyze a dataset and return structured insights.
-
-        Falls back to heuristic analysis when the LLM is unavailable.
-        """
         if not self._available or self.llm_analysis is None:
             return self._generate_fallback_analysis(schema_info)
 
@@ -121,7 +190,6 @@ class LLMAgent:
         columns = schema_info.get("columns", {})
         dataset_type_hint = schema_info.get("dataset_type", "generic")
 
-        # Build column descriptions for the prompt
         col_desc_parts: List[str] = []
         for col_name, col_info in columns.items():
             dtype = col_info.get("type", "unknown")
@@ -134,43 +202,42 @@ class LLMAgent:
             )
 
         col_desc = "\n".join(col_desc_parts) if col_desc_parts else "  (no columns detected)"
-
         sample_str = json.dumps(sample_data[:5], indent=2, default=str) if sample_data else "[]"
 
         system_prompt = (
             "You are an expert data engineer and analyst. Analyze the provided "
             "dataset schema and sample data to:\n"
-            "1. Identify the exact dataset type (e.g., sales, medical, financial, news, hr, iot, ecommerce, logistics)\n"
+            "1. Identify the exact dataset type\n"
             "2. Understand the semantic meaning of each column\n"
             "3. Identify data quality issues\n"
             "4. Recommend appropriate transformations\n"
             "5. Suggest meaningful metrics and KPIs\n\n"
-            f"Be thorough. The schema hints at dataset_type='{dataset_type_hint}' and table_name='{table_name}'.\n"
+            f"dataset_type='{dataset_type_hint}', table_name='{table_name}'.\n"
             "Respond ONLY with valid JSON matching the requested schema."
         )
 
         user_prompt = (
-            f"Analyze this dataset:\n\n"
-            f"Table: {table_name}\n"
-            f"Columns:\n{col_desc}\n\n"
-            f"Sample Data (first 5 rows):\n{sample_str}\n\n"
-            "Provide a comprehensive analysis."
+            f"Analyze this dataset:\n\nTable: {table_name}\nColumns:\n{col_desc}\n\n"
+            f"Sample Data (first 5 rows):\n{sample_str}\n\nProvide a comprehensive analysis."
         )
 
         self._push_session(session_id, "user", user_prompt)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            *self._session_messages(session_id),
+        ]
 
         try:
-            chain = self.llm_analysis.with_structured_output(DatasetAnalysis)
-            result: DatasetAnalysis = await chain.ainvoke(
-                [
-                    {"role": "system", "content": system_prompt},
-                    *self._session_messages(session_id),
-                ]
+            result: DatasetAnalysis = await self._invoke_llm_with_fallback(
+                self.llm_analysis,
+                self.llm_analysis_fallback,
+                messages,
+                structured_output_type=DatasetAnalysis,
             )
             self._push_session(session_id, "assistant", result.model_dump_json())
             return {"llm_used": True, **result.model_dump()}
         except Exception as exc:
-            print(f"[LLMAgent] analyze_dataset LLM error: {exc}")
+            logger.error(f"[LLMAgent] analyze_dataset LLM error (primary + fallback): {exc}")
             return self._generate_fallback_analysis(schema_info)
 
     # ── NL → SQL ──────────────────────────────────────────────────────────────
@@ -181,11 +248,6 @@ class LLMAgent:
         schema_info: Dict[str, Any],
         session_id: str = "default",
     ) -> Dict[str, Any]:
-        """Convert a natural language question to SQL using LLM.
-
-        Returns a dict with keys: sql, explanation, generated_by.
-        Falls back to pattern-based SQL when LLM is unavailable.
-        """
         if not self._available or self.llm_sql is None:
             return self._generate_fallback_sql(question, schema_info)
 
@@ -203,43 +265,42 @@ class LLMAgent:
             "to accurate DuckDB SQL queries.\n\n"
             f"Table: {table_name}\nDataset Type: {dataset_type}\n\n"
             f"Available Columns:\n{col_lines}\n\n"
-            "Rules:\n"
-            "1. Generate ONLY valid DuckDB SQL\n"
+            "Rules:\n1. Generate ONLY valid DuckDB SQL\n"
             "2. Use proper aggregation functions\n"
             "3. Include ORDER BY when asking for top/bottom\n"
             "4. Use LIMIT appropriately (default 20 rows)\n"
             "5. Handle date formatting with strftime\n"
-            "6. Do NOT use any dangerous SQL (DROP, DELETE, TRUNCATE, etc.)\n"
+            "6. Do NOT use dangerous SQL (DROP, DELETE, TRUNCATE)\n"
             "7. Wrap column names in double quotes if they contain special characters"
         )
 
         user_prompt = f'Convert this question to SQL:\n"{question}"\n\nProvide the SQL and explain what it does.'
-
         self._push_session(session_id, "user", user_prompt)
 
+        messages = [
+            {"role": "system", "content": system_prompt},
+            *self._session_messages(session_id),
+        ]
+
         try:
-            chain = self.llm_sql.with_structured_output(SQLResult)
-            result: SQLResult = await chain.ainvoke(
-                [
-                    {"role": "system", "content": system_prompt},
-                    *self._session_messages(session_id),
-                ]
+            result: SQLResult = await self._invoke_llm_with_fallback(
+                self.llm_sql,
+                self.llm_sql_fallback,
+                messages,
+                structured_output_type=SQLResult,
             )
             self._push_session(session_id, "assistant", result.model_dump_json())
 
-            # Validate the generated SQL before returning
             sql = result.sql
             is_safe, reason = validate_sql(sql)
             if not is_safe:
-                print(f"[LLMAgent] SQL validation blocked: {reason}")
+                logger.warning(f"[LLMAgent] SQL validation blocked: {reason}")
                 return self._generate_fallback_sql(question, schema_info)
 
             return {"llm_used": True, **result.model_dump()}
         except Exception as exc:
-            print(f"[LLMAgent] generate_sql LLM error: {exc}")
+            logger.error(f"[LLMAgent] generate_sql LLM error (primary + fallback): {exc}")
             return self._generate_fallback_sql(question, schema_info)
-
-    # ── Backward-compatible alias used by main.py ─────────────────────────────
 
     async def generate_sql_from_question(
         self,
@@ -247,7 +308,7 @@ class LLMAgent:
         schema_info: Dict[str, Any],
         analysis: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Alias for generate_sql — kept for backward compatibility with main.py."""
+        """Alias for generate_sql — backward compatibility."""
         return await self.generate_sql(question, schema_info)
 
     # ── dbt Model Generation ──────────────────────────────────────────────────
@@ -258,10 +319,6 @@ class LLMAgent:
         analysis: Optional[Dict[str, Any]] = None,
         session_id: str = "default",
     ) -> Dict[str, Any]:
-        """Generate production-quality dbt models using LLM.
-
-        Falls back to template-based generation when LLM is unavailable.
-        """
         if not self._available or self.llm_general is None:
             return self._generate_fallback_dbt(schema_info, analysis or {})
 
@@ -286,9 +343,8 @@ class LLMAgent:
             "1. Clear, readable SQL with CTEs\n"
             "2. Proper comments explaining business logic\n"
             "3. Data quality tests described in comments\n"
-            "4. Models for: staging (cleaning), intermediate (business logic), marts (analytics)\n\n"
-            "Generate at least a staging model and a mart model. Include schema.yml content "
-            "as a model with path ending in schema.yml.\n"
+            "4. Models for: staging, intermediate, marts\n\n"
+            "Include schema.yml content as a model with path ending in schema.yml.\n"
             "All SQL must be DuckDB-compatible."
         )
 
@@ -301,24 +357,25 @@ class LLMAgent:
         )
 
         self._push_session(session_id, "user", user_prompt)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            *self._session_messages(session_id),
+        ]
 
         try:
-            chain = self.llm_general.with_structured_output(DBTModelsOutput)
-            result: DBTModelsOutput = await chain.ainvoke(
-                [
-                    {"role": "system", "content": system_prompt},
-                    *self._session_messages(session_id),
-                ]
+            result: DBTModelsOutput = await self._invoke_llm_with_fallback(
+                self.llm_general,
+                self.llm_general_fallback,
+                messages,
+                structured_output_type=DBTModelsOutput,
             )
             self._push_session(session_id, "assistant", result.model_dump_json())
 
-            # Build backward-compatible dict (main.py expects models, schema_yml, tests, docs)
             models_list = [m.model_dump() for m in result.models]
             schema_yml = ""
             tests = []
             documentation = ""
 
-            # Extract schema_yml if present as a model
             for m in models_list:
                 if m.get("path", "").endswith("schema.yml"):
                     schema_yml = m["content"]
@@ -334,7 +391,7 @@ class LLMAgent:
                 "documentation": documentation,
             }
         except Exception as exc:
-            print(f"[LLMAgent] generate_dbt_models LLM error: {exc}")
+            logger.error(f"[LLMAgent] generate_dbt_models LLM error (primary + fallback): {exc}")
             return self._generate_fallback_dbt(schema_info, analysis or {})
 
     # ── Pipeline Code Generation ──────────────────────────────────────────────
@@ -345,10 +402,6 @@ class LLMAgent:
         analysis: Dict[str, Any],
         operations: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Generate Prefect pipeline code using LLM.
-
-        Falls back to template-based generation when LLM is unavailable.
-        """
         if not self._available or self.llm_general is None:
             return self._generate_fallback_pipeline(schema_info, analysis, operations)
 
@@ -377,7 +430,7 @@ class LLMAgent:
             "3. Have detailed docstrings\n"
             "4. Follow Python best practices\n"
             "5. Include type hints\n\n"
-            "Respond in JSON format:\n"
+            'Respond in JSON format:\n'
             '{"pipeline_code": "complete Python code", "config": {"schedule": "...", "retries": 3}, '
             '"description": "what this pipeline does", "tasks": ["task1", "task2"]}'
         )
@@ -385,22 +438,21 @@ class LLMAgent:
         user_prompt = (
             f"Generate a Prefect pipeline for this {dataset_type} dataset:\n\n"
             f"Table: {table_name}\nSource Table: {raw_table}\n"
-            f"Operations: {operations}\n\n"
-            f"Schema:\n{col_lines}\n\n"
+            f"Operations: {operations}\n\nSchema:\n{col_lines}\n\n"
             f"Recommended Transformations:\n{transform_str}\n\n"
             "Generate complete, production-ready pipeline code."
         )
 
         try:
-            response = await self.llm_general.ainvoke(
+            content = await self._invoke_llm_with_fallback(
+                self.llm_general,
+                self.llm_general_fallback,
                 [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
-                ]
+                ],
             )
-            content = response.content
 
-            # Parse JSON from response
             if content:
                 if "```json" in content:
                     content = content.split("```json")[1].split("```")[0]
@@ -410,9 +462,9 @@ class LLMAgent:
                 parsed["llm_used"] = True
                 return parsed
         except (json.JSONDecodeError, KeyError, IndexError) as exc:
-            print(f"[LLMAgent] generate_pipeline_code parse error: {exc}")
+            logger.error(f"[LLMAgent] generate_pipeline_code parse error: {exc}")
         except Exception as exc:
-            print(f"[LLMAgent] generate_pipeline_code LLM error: {exc}")
+            logger.error(f"[LLMAgent] generate_pipeline_code LLM error (primary + fallback): {exc}")
 
         return self._generate_fallback_pipeline(schema_info, analysis, operations)
 
@@ -432,27 +484,22 @@ class LLMAgent:
         sql = f"SELECT * FROM {table_name} LIMIT 20"
         explanation = "Show all records"
 
-        # Pattern: top / highest / best
         if any(kw in question_lower for kw in ("top", "highest", "best")):
             if numeric_cols and category_cols:
                 limit_match = re.search(r"top\s+(\d+)", question_lower)
                 limit = int(limit_match.group(1)) if limit_match else 10
                 sql = (
-                    f"SELECT {category_cols[0]}, "
-                    f"SUM({numeric_cols[0]}) as total "
-                    f"FROM {table_name} "
-                    f"GROUP BY {category_cols[0]} "
+                    f"SELECT {category_cols[0]}, SUM({numeric_cols[0]}) as total "
+                    f"FROM {table_name} GROUP BY {category_cols[0]} "
                     f"ORDER BY total DESC LIMIT {limit}"
                 )
                 explanation = f"Top {limit} {category_cols[0]} by total {numeric_cols[0]}"
 
-        # Pattern: average / avg
         elif any(kw in question_lower for kw in ("average", "avg")):
             if numeric_cols:
                 sql = f"SELECT AVG({numeric_cols[0]}) as avg_{numeric_cols[0]} FROM {table_name}"
                 explanation = f"Average {numeric_cols[0]}"
 
-        # Pattern: total / sum
         elif any(kw in question_lower for kw in ("total", "sum")):
             if numeric_cols:
                 sql = (
@@ -461,7 +508,6 @@ class LLMAgent:
                 )
                 explanation = f"Total {numeric_cols[0]} and record count"
 
-        # Pattern: group by
         elif "by" in question_lower and category_cols and numeric_cols:
             sql = (
                 f"SELECT {category_cols[0]}, SUM({numeric_cols[0]}) as total, "
@@ -470,7 +516,6 @@ class LLMAgent:
             )
             explanation = f"Group by {category_cols[0]} with totals"
 
-        # Pattern: trend / over time / monthly
         elif any(kw in question_lower for kw in ("trend", "over time", "monthly")):
             if date_cols and numeric_cols:
                 sql = (
@@ -480,7 +525,6 @@ class LLMAgent:
                 )
                 explanation = f"Monthly trend of {numeric_cols[0]}"
 
-        # Pattern: count / how many
         elif any(kw in question_lower for kw in ("count", "how many")):
             if category_cols:
                 sql = (
@@ -503,10 +547,6 @@ class LLMAgent:
     # ── Fallback: Heuristic Analysis ──────────────────────────────────────────
 
     def _generate_fallback_analysis(self, schema_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate heuristic analysis based on schema patterns when LLM is unavailable.
-
-        Never fabricates confidence scores — only uses what can be reliably inferred.
-        """
         columns = schema_info.get("columns", {})
         dataset_type = schema_info.get("dataset_type", "generic")
 
@@ -517,16 +557,13 @@ class LLMAgent:
         text_cols = cats["text"]
         id_cols = cats["id"]
 
-        # Build per-column analysis
         column_analysis: Dict[str, Dict[str, Any]] = {}
         for col_name, col_info in columns.items():
             semantic = col_info.get("semantic", "generic")
             dtype = col_info.get("type", "")
-
             issues: List[str] = []
             recommendations: List[str] = []
 
-            # Check for common issues
             nullable = col_info.get("nullable", True)
             if nullable:
                 issues.append("Column allows NULL values")
@@ -549,46 +586,29 @@ class LLMAgent:
                 "recommendations": recommendations,
             }
 
-        # Transformations
         transformations: List[Dict[str, str]] = []
         if numeric_cols and category_cols:
             transformations.append({
                 "type": "aggregate",
                 "description": f"Aggregate {numeric_cols[0]} by {category_cols[0]}",
-                "sql_template": (
-                    f"SELECT {category_cols[0]}, SUM({numeric_cols[0]}) as total "
-                    f"FROM table GROUP BY {category_cols[0]}"
-                ),
+                "sql_template": f"SELECT {category_cols[0]}, SUM({numeric_cols[0]}) as total FROM table GROUP BY {category_cols[0]}",
             })
         if date_cols and numeric_cols:
             transformations.append({
                 "type": "derive",
                 "description": f"Time-based analysis of {numeric_cols[0]}",
-                "sql_template": (
-                    f"SELECT strftime({date_cols[0]}, '%Y-%m') as period, "
-                    f"SUM({numeric_cols[0]}) as total "
-                    f"FROM table GROUP BY period"
-                ),
+                "sql_template": f"SELECT strftime({date_cols[0]}, '%Y-%m') as period, SUM({numeric_cols[0]}) as total FROM table GROUP BY period",
             })
 
-        # Metrics
         suggested_metrics: List[Dict[str, str]] = [
-            {
-                "name": "Total Records",
-                "description": "Count of all records in the dataset",
-                "formula": "COUNT(*)",
-                "business_value": "Understand data volume",
-            }
+            {"name": "Total Records", "description": "Count of all records", "formula": "COUNT(*)", "business_value": "Understand data volume"}
         ]
         if numeric_cols:
             suggested_metrics.append({
-                "name": f"Total {numeric_cols[0]}",
-                "description": f"Sum of all {numeric_cols[0]} values",
-                "formula": f"SUM({numeric_cols[0]})",
-                "business_value": "Understand total magnitude",
+                "name": f"Total {numeric_cols[0]}", "description": f"Sum of all {numeric_cols[0]} values",
+                "formula": f"SUM({numeric_cols[0]})", "business_value": "Understand total magnitude"
             })
 
-        # Insights
         insights = [f"This appears to be a {dataset_type} dataset with {len(columns)} columns"]
         if numeric_cols:
             insights.append(f"Found {len(numeric_cols)} numeric column(s): {', '.join(numeric_cols)}")
@@ -602,7 +622,7 @@ class LLMAgent:
             "error": "LLM not available — using heuristic analysis",
             "dataset_type": dataset_type,
             "dataset_subtype": "standard",
-            "confidence_score": 0.0,  # Explicitly 0 since no LLM classification happened
+            "confidence_score": 0.0,
             "column_analysis": column_analysis,
             "data_quality_summary": {
                 "overall_score": 0.0,
@@ -616,12 +636,7 @@ class LLMAgent:
 
     # ── Fallback: Template dbt Models ─────────────────────────────────────────
 
-    def _generate_fallback_dbt(
-        self,
-        schema_info: Dict[str, Any],
-        analysis: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Generate dbt models from templates when LLM is unavailable."""
+    def _generate_fallback_dbt(self, schema_info: Dict[str, Any], analysis: Dict[str, Any]) -> Dict[str, Any]:
         table_name = schema_info.get("table_name", "data_clean")
         raw_table = schema_info.get("raw_table", "data_raw")
         columns = schema_info.get("columns", {})

@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime
 
 # === PATHS (parameterized, not hardcoded) ===
-BASE_PATH = os.getenv("DATAFORGE_BASE_PATH", "/home/z/my-project")
+BASE_PATH = os.getenv("DATAFORGE_BASE_PATH", r"R:\New folder (2)\my-project")
 DATA_DIR = os.path.join(BASE_PATH, "data")
 RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
 CLEAN_DATA_DIR = os.path.join(DATA_DIR, "clean")

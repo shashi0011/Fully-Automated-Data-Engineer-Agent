@@ -105,7 +105,7 @@ Rules:
 
         return response
 
-    def _validate_sql(self, sql: str) -> Tuple[bool, str]:
+    def _validate_sql(self, sql: str) -> tuple[bool, str]:
         """Validate SQL for safety using shared utility"""
         return validate_sql(sql)
 

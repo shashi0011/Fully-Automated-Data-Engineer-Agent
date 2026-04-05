@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
-export async function POST() {
-  try {
-    const response = await fetch(`${BACKEND_URL}/llm/analyze`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.json().catch(() => ({}));
+      const response = await fetch(`${BACKEND_URL}/llm/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
     
     const text = await response.text();
     let data: any;

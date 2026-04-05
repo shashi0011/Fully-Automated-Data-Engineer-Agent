@@ -201,3 +201,48 @@ class PipelineOutput(BaseModel):
         ...,
         description="High-level description of the entire pipeline",
     )
+    
+
+# ─── Schema Detection Schemas ──────────────────────────────────────────────
+
+
+class ColumnSemantic(BaseModel):
+    """Semantic classification for a single column from LLM."""
+    column_name: str = Field(
+        ...,
+        description="Exact column name from the dataset",
+    )
+    semantic_type: str = Field(
+        ...,
+        description="Semantic type: id, name, category, datetime, money, count, score, percentage, location, email, phone, url, text, person, generic",
+    )
+    business_meaning: str = Field(
+        ...,
+        description="Short description of what this column represents in business terms",
+    )
+
+
+class SchemaDetectionResult(BaseModel):
+    """Structured output from the LLM-powered schema detector."""
+    dataset_type: str = Field(
+        ...,
+        description="Dataset type: sales, education, medical, finance, hr, news, ecommerce, iot, logistics, generic",
+    )
+    dataset_description: str = Field(
+        ...,
+        description="One-sentence description of what this dataset contains",
+    )
+    confidence_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Confidence in classification from 0.0 to 1.0",
+    )
+    column_semantics: List[ColumnSemantic] = Field(
+        default_factory=list,
+        description="Semantic classification for each column",
+    )
+    suggested_queries: List[str] = Field(
+        default_factory=list,
+        description="5 relevant suggested queries for exploring this dataset",
+    )

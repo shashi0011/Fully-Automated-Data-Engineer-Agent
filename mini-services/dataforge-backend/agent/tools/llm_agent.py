@@ -13,6 +13,8 @@ import re
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
 
 from langchain_openai import ChatOpenAI
 
@@ -637,6 +639,7 @@ class LLMAgent:
     # ── Fallback: Template dbt Models ─────────────────────────────────────────
 
     def _generate_fallback_dbt(self, schema_info: Dict[str, Any], analysis: Dict[str, Any]) -> Dict[str, Any]:
+        schema_info = schema_info or {}
         table_name = schema_info.get("table_name", "data_clean")
         raw_table = schema_info.get("raw_table", "data_raw")
         columns = schema_info.get("columns", {})

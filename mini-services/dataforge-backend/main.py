@@ -17,6 +17,8 @@ import duckdb
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dotenv import load_dotenv
+load_dotenv()
 
 from agent.master_agent import MasterAgent
 from agent.query_agent import QueryAgent
@@ -25,17 +27,23 @@ from agent.tools.schema_detector import SchemaDetector
 from agent.tools.llm_agent import LLMAgent
 from agent.tools.xlsx_processor import XLSXProcessor
 from agent.tools.airbyte_connector import AirbyteConnector
+from agent.tools.report_tool import ReportTool
 from agent.utils import (
     BASE_PATH,
     WAREHOUSE_DB_PATH,
     REPORTS_DIR,
     DBT_DIR,
     PIPELINES_DIR,
+    CLEAN_DATA_DIR,
     load_schema,
     quote_identifier,
     validate_identifier,
 )
-
+# ============ LLM Configuration ============
+# Set your OpenAI API key here OR set OPENAI_API_KEY env variable
+import os
+if not os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = ""  # Replace with your real key
 app = FastAPI(
     title="DataForge AI Backend",
     description="AI-powered Data Engineering Platform - Works with ANY dataset",
@@ -97,7 +105,7 @@ class StatusResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
 
 
-class FileResponse(BaseModel):
+class FileInfo(BaseModel):
     name: str
     path: str
     type: str
@@ -132,7 +140,7 @@ async def get_current_schema():
 @app.post("/schema/detect")
 async def detect_schema(file_path: str):
     """Detect schema from a specific file"""
-    result = schema_detector.detect_schema_from_file(file_path)
+    result = await schema_detector.detect_schema_from_file(file_path)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return {
@@ -201,7 +209,7 @@ async def upload_file(file: UploadFile = File(...)):
         }
 
     # Detect schema for CSV/JSON
-    schema = schema_detector.detect_schema_from_file(file_path)
+    schema = await schema_detector.detect_schema_from_file(file_path, use_llm=True)
 
     return {
         "status": "success",
@@ -212,8 +220,11 @@ async def upload_file(file: UploadFile = File(...)):
 
 
 @app.post("/upload-and-process")
-async def upload_and_process(file: UploadFile = File(...), use_llm: bool = True):
-    """Upload a file and automatically process it with LLM analysis"""
+async def upload_and_process(file: UploadFile = File(...)):
+    """Upload a file — only saves, detects schema, and ingests raw data.
+    Does NOT auto-transform, auto-generate pipeline, or auto-generate report.
+    The user must issue commands through the agent to perform those actions.
+    """
     try:
         # Validate file type
         allowed_extensions = ['.csv', '.json', '.xlsx', '.xls', '.xlsm']
@@ -238,55 +249,35 @@ async def upload_and_process(file: UploadFile = File(...), use_llm: bool = True)
             if convert_result.get("output_files"):
                 csv_path = convert_result["output_files"][0]["path"]
 
-        # Detect schema
-        schema = schema_detector.detect_schema_from_file(csv_path)
+        # Detect schema only
+                # Detect schema (uses LLM if available, falls back to heuristic)
+        schema = await schema_detector.detect_schema_from_file(csv_path, use_llm=True)
 
         if "error" in schema:
             return {"status": "error", "message": schema["error"]}
 
-        # Ingest into warehouse
+        # Ingest raw data into warehouse (creates {name}_raw table only)
         ingest_result = await duckdb_tool.ingest_file(csv_path)
 
         if "error" in ingest_result:
             return {"status": "error", "message": ingest_result["error"]}
 
-        # Transform data
-        transform_result = await duckdb_tool.transform()
-            # Auto-generate pipeline.py
-        try:
-            from agent.pipeline_generator import PipelineGenerator
-            generator = PipelineGenerator()
-            pipeline_code = generator.generate(["ingest", "transform", "report"])
-        except Exception as pipeline_err:
-            print(f"Pipeline generation error: {pipeline_err}")
-    
-        # Auto-generate report
-        try:
-            report_result = await report_tool.generate()
-            print(f"Report generation: {report_result}")
-        except Exception as report_err:
-            print(f"Report generation error: {report_err}")
-
-        # LLM Analysis
-        llm_analysis = None
-        if use_llm:
-            try:
-                sample_data = await duckdb_tool.get_sample_data(limit=100)
-                llm_analysis = await llm_agent.analyze_dataset(
-                    schema,
-                    sample_data.get("data", [])
-                )
-            except Exception as e:
-                print(f"LLM analysis error: {e}")
+        # STOP here — no auto-transform, no auto-pipeline, no auto-report
+        # User must use the agent to give commands
 
         return {
             "status": "success",
-            "message": f"File uploaded and processed: {file.filename}",
+            "message": f"File uploaded: {file.filename}. Use the agent to clean data, generate reports, or build pipelines.",
             "file_path": file_path,
             "schema": schema,
             "ingest": ingest_result,
-            "transform": transform_result,
-            "llm_analysis": llm_analysis
+            "agent_suggestions": [
+                "Clean and transform the data",
+                "Generate a summary report",
+                "Create a full data pipeline",
+                "Analyze the dataset",
+                "Describe the schema",
+            ]
         }
     except Exception as e:
         print(f"Upload error: {e}")

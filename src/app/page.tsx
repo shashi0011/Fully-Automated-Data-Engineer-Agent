@@ -43,7 +43,7 @@ import {
   RefreshCw,
   Download,
   Search,
-  Eye
+  Eye,
   FileCode
 
 } from "lucide-react";
@@ -877,8 +877,8 @@ function SampleDatasets({ onSelect }: { onSelect: (filename: string) => void }) 
 
 // Warehouse View Component
 function WarehouseView() {
-  const [warehouseInfo, setWarehouseInfo] = useState<{
-    tables: string[];
+    const [warehouseInfo, setWarehouseInfo] = useState<{
+    tables: Array<{ name: string; row_count: number; columns: Array<{ name: string; type: string }> }>;
     count: number;
     data_volume?: number;
   } | null>(null);
@@ -898,7 +898,7 @@ function WarehouseView() {
       setWarehouseInfo(data);
     } catch (error) {
       console.error("Failed to fetch warehouse info:", error);
-      setWarehouseInfo({ tables: [], count: 0 });
+      setWarehouseInfo({ tables: [], count: 0, data_volume: 0 });
     } finally {
       setIsLoading(false);
     }
@@ -1000,10 +1000,11 @@ function WarehouseView() {
             </div>
           ) : warehouseInfo && warehouseInfo.tables && warehouseInfo.tables.length > 0 ? (
             <div className="space-y-2">
-              {warehouseInfo.tables.map((table, i) => (
+                            {warehouseInfo.tables.map((table, i) => (
                 <div key={i} className="flex items-center gap-3 border rounded-lg p-3">
                   <Database className="h-4 w-4 text-green-500" />
-                  <span className="font-medium">{table}</span>
+                  <span className="font-medium">{table.name}</span>
+                  <span className="text-xs text-muted-foreground">{table.row_count} rows &middot; {table.columns.length} columns</span>
                   <Badge variant="outline" className="ml-auto">active</Badge>
                 </div>
               ))}
@@ -1281,6 +1282,229 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
     </div>
   );
 }
+// ============ Downloads Section ============
+
+function DownloadsSection({ schema }: { schema: any }) {
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
+  const [fileContent, setFileContent] = useState<string>("");
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchFiles() {
+      try {
+        const res = await fetch("/api/files");
+        const data = await res.json();
+        setFiles(data.files || []);
+      } catch {
+        setFiles([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchFiles();
+  }, []);
+
+  const handleViewFile = async (file: FileItem) => {
+    setSelectedFile(file);
+    setFileContent("Loading...");
+    try {
+      const res = await fetch(`/api/files?path=${encodeURIComponent(file.path)}`);
+      const data = await res.json();
+      setFileContent(data.content || "[Binary file — cannot display]");
+    } catch {
+      setFileContent("Error loading file content.");
+    }
+  };
+
+  const handleDownload = async (file: FileItem) => {
+    setDownloading(file.path);
+    try {
+      const res = await fetch(`/api/download?path=${encodeURIComponent(file.path)}`);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Download failed. The backend may not be running.");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "raw_data": return <Upload className="h-4 w-4 text-orange-500" />;
+      case "clean_data": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case "pipeline": return <GitBranch className="h-4 w-4 text-blue-500" />;
+      case "report": return <FileSpreadsheet className="h-4 w-4 text-purple-500" />;
+      case "schema": return <Layers className="h-4 w-4 text-cyan-500" />;
+      case "dbt_model": return <Code className="h-4 w-4 text-orange-500" />;
+      default: return <FileText className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getCategoryBadge = (category: string) => {
+    const colors: Record<string, string> = {
+      raw_data: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+      clean_data: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+      pipeline: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+      report: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+      schema: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
+      dbt_model: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+    };
+    return colors[category] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Download className="h-6 w-6 text-purple-500" />
+          <h1 className="text-2xl font-bold">Downloads</h1>
+        </div>
+        <p className="text-muted-foreground">Download generated files: cleaned data, reports, pipeline code, and more.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="animate-pulse space-y-2">
+                  <div className="h-4 bg-muted rounded w-3/4" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
+                  <div className="h-3 bg-muted rounded w-1/3" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Download className="h-6 w-6 text-purple-500" />
+            <h1 className="text-2xl font-bold">Downloads</h1>
+          </div>
+          <p className="text-muted-foreground">Download generated files: cleaned data, reports, pipeline code, and more.</p>
+        </div>
+        <Badge variant="secondary">{files.length} files</Badge>
+      </div>
+
+      {files.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="text-lg font-semibold mb-1">No files yet</h3>
+            <p className="text-muted-foreground">Upload a dataset and use the agent to generate files.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {files.map((file) => (
+            <Card
+              key={file.path}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => handleViewFile(file)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {getCategoryIcon(file.category)}
+                    <CardTitle className="text-sm font-medium truncate max-w-[180px]">
+                      {file.name}
+                    </CardTitle>
+                  </div>
+                </div>
+                <CardDescription className="text-xs">
+                  {file.path}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className={`text-xs ${getCategoryBadge(file.category)}`}>
+                      {file.category.replace("_", " ")}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{formatSize(file.size)}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload(file);
+                    }}
+                    disabled={downloading === file.path}
+                  >
+                    {downloading === file.path ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Download className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* File Preview Dialog */}
+      {selectedFile && (
+        <Card className="mt-4">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                <Eye className="h-4 w-4 inline mr-2" />
+                {selectedFile.name}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => handleDownload(selectedFile)}
+                  disabled={downloading === selectedFile.path}
+                >
+                  {downloading === selectedFile.path ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-1" />
+                  )}
+                  Download
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedFile(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-muted rounded-md p-4 max-h-96 overflow-auto">
+              <pre className="text-xs whitespace-pre-wrap font-mono">{fileContent}</pre>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 
 // Main App Component
 export default function DataForgeApp() {
@@ -1633,7 +1857,7 @@ export default function DataForgeApp() {
                   <PipelineDAG status={pipelineStatus} onRun={handleExecuteCommand.bind(null, "run pipeline")} isRunning={isLoading} />
                 </>
               )}
-              {/* Downloads Tab */}
+                            {/* Downloads Tab */}
               {activeTab === "downloads" && (
                 <DownloadsSection schema={schema} />
               )}

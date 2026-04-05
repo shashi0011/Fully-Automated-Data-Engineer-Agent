@@ -2,12 +2,21 @@
 DataForge AI - Schema Detector
 Auto-detects schema from any CSV/JSON file and generates metadata
 """
+"""
+DataForge AI - Schema Detector
+Auto-detects schema from any CSV/JSON file and generates metadata.
+Uses LLM for intelligent classification when available, falls back to heuristic keywords.
+"""
 
 import os
 import re
+import json
 import pandas as pd
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
+import logging
+logger = logging.getLogger(__name__)
+
 
 from agent.utils import (
     SCHEMA_CACHE_PATH,
@@ -24,6 +33,89 @@ class SchemaDetector:
 
     def __init__(self):
         pass
+
+    async def _detect_with_llm(self, df: pd.DataFrame, source_file: str = None) -> Optional[Dict]:
+        """Use LLM to classify dataset type, column semantics, and generate suggestions.
+        
+        Returns None if LLM is unavailable, so caller falls back to heuristic.
+        """
+        try:
+            from agent.tools.llm_agent import LLMAgent
+            from agent.schemas import SchemaDetectionResult
+
+            llm = LLMAgent()
+            if not llm._available or llm.llm_analysis is None:
+                logger.info("[SchemaDetector] LLM not available, using heuristic fallback")
+                return None
+
+            # Build column info for LLM
+            col_lines = []
+            for col in df.columns:
+                dtype = str(df[col].dtype)
+                non_null = df[col].dropna()
+                sample_vals = non_null.head(3).tolist()
+                # Convert numpy types
+                sample_str = ", ".join(
+                    str(v) if not (hasattr(v, 'item')) else str(v.item())
+                    for v in sample_vals
+                )
+                col_lines.append(
+                    f"  - {col} (type={dtype}, sample=[{sample_str}], unique={len(non_null.unique())})"
+                )
+
+            # Take 5 sample rows
+            sample_rows = df.head(5).to_dict(orient="records")
+            sample_str = json.dumps(sample_rows, indent=2, default=str)
+
+            col_desc = "\n".join(col_lines)
+
+            system_prompt = (
+                "You are an expert data analyst. Analyze the provided dataset columns "
+                "and sample data to:\n"
+                "1. Classify the dataset type (education, sales, medical, finance, hr, "
+                "news, ecommerce, iot, logistics, generic)\n"
+                "2. Assign semantic types to every column\n"
+                "3. Describe the dataset in one sentence\n"
+                "4. Suggest 5 relevant queries for exploring this dataset\n\n"
+                "IMPORTANT:\n"
+                "- Look at ALL columns TOGETHER to understand context\n"
+                "- 'gender' alone does NOT mean medical — check for actual medical terms\n"
+                "- 'score', 'grade', 'attendance', 'exam' = education\n"
+                "- 'patient', 'diagnosis', 'prescription' = medical\n"
+                "- Consider the COMBINATION of columns, not individual ones\n"
+                "- Only assign 'medical_term' semantic to actual medical vocabulary\n\n"
+                "Respond ONLY with valid JSON matching the SchemaDetectionResult schema."
+            )
+
+            user_prompt = (
+                f"Analyze this dataset:\n\n"
+                f"Columns ({len(df.columns)} total):\n{col_desc}\n\n"
+                f"Sample Data (first 5 rows):\n{sample_str}\n\n"
+                f"Classify this dataset and assign semantic types."
+            )
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+
+            result: SchemaDetectionResult = await llm._invoke_llm_with_fallback(
+                llm.llm_analysis,
+                llm.llm_analysis_fallback,
+                messages,
+                structured_output_type=SchemaDetectionResult,
+            )
+
+            logger.info(
+                f"[SchemaDetector] LLM classified as '{result.dataset_type}' "
+                f"(confidence={result.confidence_score})"
+            )
+
+            return result.model_dump()
+
+        except Exception as e:
+            logger.warning(f"[SchemaDetector] LLM detection failed: {e}")
+            return None
 
     def _convert_to_native(self, value):
         """Convert numpy types to Python native types for JSON serialization"""
@@ -128,7 +220,7 @@ class SchemaDetector:
 
         return semantic_info
 
-    def detect_schema_from_file(self, file_path: str) -> Dict[str, Any]:
+    async def detect_schema_from_file(self, file_path: str, use_llm: bool = True) -> Dict[str, Any]:
         """Detect schema from a CSV or JSON file"""
         if not os.path.exists(file_path):
             return {"error": f"File not found: {file_path}"}
@@ -144,78 +236,133 @@ class SchemaDetector:
         except (pd.errors.EmptyDataError, pd.errors.ParserError, ValueError) as e:
             return {"error": f"Failed to read file: {e}"}
 
-        return self.detect_schema_from_df(df, file_path)
+        return await self.detect_schema_from_df(df, file_path, use_llm=use_llm)
 
-    def detect_schema_from_df(self, df: pd.DataFrame, source_file: str = None) -> Dict[str, Any]:
-        """Detect schema from a DataFrame"""
+    async def detect_schema_from_df(
+        self, df: pd.DataFrame, source_file: str = None, use_llm: bool = True
+    ) -> Dict[str, Any]:
+        """Detect schema from a DataFrame.
+        
+        If use_llm=True and LLM is available, uses intelligent classification.
+        Falls back to heuristic keyword matching otherwise.
+        """
+        # Step 1: Always detect basic column types (dtype, nullable, sample values)
         columns_info = {}
-
         for col in df.columns:
             columns_info[str(col)] = self._detect_column_type(df[col])
 
-        # Determine dataset type based on columns
-        dataset_type = self._detect_dataset_type(columns_info)
+        # Step 2: Try LLM classification
+        llm_result = None
+        if use_llm:
+            llm_result = await self._detect_with_llm(df, source_file)
 
-        # Generate suggested table name
+        # Step 3: Determine dataset type
+        if llm_result and llm_result.get("confidence_score", 0) >= 0.3:
+            # Use LLM result — overwrite semantic types and dataset type
+            dataset_type = llm_result["dataset_type"]
+            dataset_description = llm_result.get("dataset_description", "")
+
+            # Override column semantic types with LLM's understanding
+            for col_semantic in llm_result.get("column_semantics", []):
+                col_name = col_semantic["column_name"]
+                if col_name in columns_info:
+                    columns_info[col_name]["semantic"] = col_semantic["semantic_type"]
+                    columns_info[col_name]["business_meaning"] = col_semantic.get("business_meaning", "")
+
+            # Use LLM suggested queries
+            suggested_queries = llm_result.get("suggested_queries", [])
+        else:
+            # Fall back to heuristic
+            dataset_type = self._detect_dataset_type(columns_info)
+            dataset_description = ""
+            suggested_queries = self._generate_suggested_queries(columns_info, dataset_type, table_name)
+
+        # Step 4: Generate table name
         table_name = "data_clean"
         if source_file:
             base_name = os.path.basename(source_file).split('.')[0]
             table_name = f"{base_name}_clean"
 
+        # Step 5: Build schema
         schema = {
             "source_file": source_file,
             "table_name": table_name,
             "dataset_type": dataset_type,
-            "row_count": int(len(df)),  # Convert to native int
-            "column_count": int(len(df.columns)),  # Convert to native int
+            "dataset_description": dataset_description,
+            "row_count": int(len(df)),
+            "column_count": int(len(df.columns)),
             "columns": columns_info,
             "detected_at": datetime.now().isoformat(),
-            "suggested_queries": self._generate_suggested_queries(columns_info, dataset_type, table_name)
+            "suggested_queries": suggested_queries,
+            "llm_used": llm_result is not None,
+            "detection_method": "llm" if llm_result else "heuristic",
         }
 
         # Save to cache using shared utility (with thread-safe locking)
         save_schema(schema)
 
         return schema
-
     def _detect_dataset_type(self, columns_info: Dict) -> str:
-        """Detect the type of dataset based on column patterns"""
-        col_names = set(k.lower() for k in columns_info.keys())
+        """Detect the type of dataset using weighted scoring (education-aware, no false medical)"""
+        col_names_lower = {k.lower() for k in columns_info.keys()}
 
-        # Sales/E-commerce
-        sales_keywords = {'product', 'sales', 'revenue', 'quantity', 'price', 'order', 'customer', 'region'}
-        if col_names & sales_keywords:
-            return "sales"
+        # Strong keywords = 3 points, Weak keywords = 1 point
+        # Generic terms like age, gender, name only give 1 point (never trigger false positives)
+        type_keywords = {
+            "education": {
+                3: {"student", "grade", "midterm", "final_exam", "attendance",
+                    "assignment", "exam", "gpa", "school", "university", "college",
+                    "teacher", "lecture", "course", "semester", "homework", "class",
+                    "study_hours", "participation_score", "overall_score", "sleep_hours",
+                    "extra_classes", "parent_education", "internet_access"},
+                1: {"score", "pass", "fail"},
+            },
+            "medical": {
+                3: {"patient", "diagnosis", "treatment", "medication", "symptom",
+                    "doctor", "physician", "hospital", "disease", "clinical", "dosage",
+                    "prescription", "lab_result", "blood_pressure", "heart_rate", "pulse"},
+                1: {"age", "gender", "weight", "height", "blood"},
+            },
+            "sales": {
+                3: {"product", "sales", "revenue", "quantity", "price", "order",
+                    "customer", "invoice", "discount", "profit", "shipping"},
+                1: {"region", "total", "amount"},
+            },
+            "news": {
+                3: {"headline", "article", "publisher", "journalist", "edition"},
+                1: {"title", "author", "source", "published", "category", "date"},
+            },
+            "finance": {
+                3: {"stock", "ticker", "exchange", "portfolio", "dividend", "nasdaq",
+                    "market_cap", "closing_price", "opening_price"},
+                1: {"price", "volume", "market", "return"},
+            },
+            "hr": {
+                3: {"employee", "salary", "hire_date", "performance_review", "manager"},
+                1: {"department", "position", "performance", "attendance"},
+            },
+            "ecommerce": {
+                3: {"cart", "checkout", "sku", "wishlist", "coupon"},
+                1: {"order", "shipping", "product", "quantity"},
+            },
+            "iot": {
+                3: {"sensor", "device_id", "reading", "humidity", "pressure"},
+                1: {"temperature", "timestamp", "device"},
+            },
+        }
 
-        # News/Media
-        news_keywords = {'headline', 'title', 'article', 'author', 'publisher', 'source', 'published', 'category'}
-        if col_names & news_keywords:
-            return "news"
+        # Score each type
+        scores: Dict[str, int] = {}
+        for dtype, keyword_weights in type_keywords.items():
+            score = 0
+            for weight, keywords in keyword_weights.items():
+                score += weight * len(col_names_lower & keywords)
+            if score > 0:
+                scores[dtype] = score
 
-        # Medical/Healthcare
-        medical_keywords = {'patient', 'diagnosis', 'treatment', 'medication', 'symptom', 'doctor', 'hospital', 'age', 'gender'}
-        if col_names & medical_keywords:
-            return "medical"
-
-        # Financial
-        finance_keywords = {'stock', 'price', 'volume', 'market', 'ticker', 'exchange', 'portfolio'}
-        if col_names & finance_keywords:
-            return "finance"
-
-        # HR/Employee
-        hr_keywords = {'employee', 'salary', 'department', 'hire', 'position', 'manager', 'performance'}
-        if col_names & hr_keywords:
-            return "hr"
-
-        # E-commerce
-        ecommerce_keywords = {'order', 'cart', 'checkout', 'shipping', 'product', 'quantity'}
-        if col_names & ecommerce_keywords:
-            return "ecommerce"
-
-        # IoT/Sensor
-        iot_keywords = {'sensor', 'device', 'reading', 'temperature', 'humidity', 'pressure'}
-        if col_names & iot_keywords:
-            return "iot"
+        # Return the highest-scoring type
+        if scores:
+            return max(scores, key=scores.get)
 
         return "generic"
 
@@ -249,6 +396,16 @@ class SchemaDetector:
             if numeric_cols:
                 suggestions.append(f"Average {numeric_cols[0]} by patient group")
             suggestions.append("Diagnosis distribution")
+
+        elif dataset_type == "education":
+            if category_cols:
+                suggestions.append(f"Average scores by {category_cols[0]}")
+            if numeric_cols:
+                suggestions.append(f"Top students by {numeric_cols[0]}")
+            if category_cols and numeric_cols:
+                suggestions.append(f"Compare {numeric_cols[0]} across {category_cols[0]}")
+            suggestions.append("Grade distribution")
+            suggestions.append("Students at risk of failing")
 
         elif dataset_type == "finance":
             if numeric_cols:

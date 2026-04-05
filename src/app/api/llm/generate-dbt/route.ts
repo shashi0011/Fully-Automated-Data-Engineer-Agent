@@ -3,17 +3,17 @@ import { NextResponse } from 'next/server';
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
-
+    const body = await request.json().catch(() => ({}));
     try {
-      const response = await fetch(`${BACKEND_URL}/llm/generate-dbt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-      });
+        const response = await fetch(`${BACKEND_URL}/llm/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
       const text = await response.text();
 

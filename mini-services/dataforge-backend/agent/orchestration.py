@@ -82,17 +82,18 @@ class AgentState(TypedDict):
 
 _INTENT_KEYWORDS: Dict[str, List[str]] = {
     "ingest": ["upload", "ingest", "load", "import"],
-    "analyze": ["analyze", "analysis", "inspect", "examine", "what is"],
+    "analyze": ["analyze", "analysis", "inspect", "examine", "what is", "quality", "data quality"],
     "query": [
         "query", "show", "select", "find", "top", "average", "sum",
         "count", "how many", "trend", "total", "best", "worst",
         "compare", "by region", "by product", "monthly", "yearly",
     ],
     "generate_dbt": ["dbt", "generate dbt", "create models", "transform models"],
-    "pipeline": ["pipeline", "etl", "process", "run pipeline", "build pipeline"],
-    "report": ["report", "summary", "export", "download"],
+    "transform": ["clean", "transform", "process data", "normalize", "wash", "preprocess", "clean data", "clean the data", "transform data", "normalize data"],
+    "pipeline": ["pipeline", "etl", "process", "run pipeline", "build pipeline", "full pipeline", "run all"],
+    "report": ["report", "summary", "export", "download", "generate report", "create report"],
     "schema": ["schema", "columns", "structure", "describe"],
-    "help": ["help", "what can you do", "commands", "list"],
+    "help": ["help", "what can you do", "commands", "list", "options"],
 }
 
 
@@ -307,6 +308,51 @@ async def generate_dbt(state: AgentState) -> dict:
             "error_message": f"dbt generation failed: {exc}",
             "pipeline_logs": state.get("pipeline_logs", []) + [f"ERROR during dbt generation: {exc}"],
         }
+    
+async def run_transform(state: AgentState) -> dict:
+    """Transform and clean data only (without full pipeline)."""
+    from agent.tools.duckdb_tool import DuckDBTool
+
+    schema = state.get("schema") or load_schema()
+
+    if not schema or not schema.get("columns"):
+        return {
+            "status": "error",
+            "error_message": "No schema loaded. Upload a dataset first.",
+            "pipeline_logs": ["ERROR: No schema found — upload data first"],
+        }
+
+    try:
+        duckdb = DuckDBTool()
+        transform_result = await duckdb.transform()
+
+        if "error" in transform_result:
+            return {
+                "status": "error",
+                "error_message": transform_result["error"],
+                "pipeline_logs": [f"ERROR during transform: {transform_result['error']}"],
+            }
+
+        files = ["warehouse/warehouse.duckdb"]
+        if "output_file" in transform_result:
+            files.append(transform_result["output_file"])
+
+        return {
+            "status": "success",
+            "files_generated": files,
+            "pipeline_logs": [
+                f"[Transform] {transform_result.get('message', 'Completed')}",
+                f"[Transform] Clean data exported",
+            ],
+        }
+
+    except Exception as exc:
+        return {
+            "status": "error",
+            "error_message": f"Transform failed: {exc}",
+            "pipeline_logs": [f"ERROR during transform: {exc}"],
+        }
+
 
 
 async def run_pipeline(state: AgentState) -> dict:
@@ -502,6 +548,8 @@ def route_by_intent(state: AgentState) -> str:
         return "ingest"
     elif intent == "pipeline":
         return "pipeline"
+    elif intent == "transform":
+        return "transform" if has_schema else "error"
     elif intent == "help":
         return "help"
     elif intent == "schema":
@@ -531,6 +579,7 @@ def build_graph() -> StateGraph:
     graph.add_node("analyze", run_analysis)
     graph.add_node("query", run_query)
     graph.add_node("generate_dbt", generate_dbt)
+    graph.add_node("transform", run_transform)
     graph.add_node("pipeline", run_pipeline)
     graph.add_node("report", generate_report)
     graph.add_node("schema_info", show_schema)
@@ -545,11 +594,12 @@ def build_graph() -> StateGraph:
     graph.add_conditional_edges(
         "load_schema",
         route_by_intent,
-        {
+                {
             "ingest": "ingest",
             "analyze": "analyze",
             "query": "query",
             "generate_dbt": "generate_dbt",
+            "transform": "transform",
             "pipeline": "pipeline",
             "report": "report",
             "schema_info": "schema_info",
@@ -563,6 +613,7 @@ def build_graph() -> StateGraph:
     graph.add_edge("analyze", END)
     graph.add_edge("query", END)
     graph.add_edge("generate_dbt", END)
+    graph.add_edge("transform", END)
     graph.add_edge("pipeline", END)
     graph.add_edge("report", END)
     graph.add_edge("schema_info", END)

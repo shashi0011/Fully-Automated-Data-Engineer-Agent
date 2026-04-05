@@ -1,7 +1,8 @@
 {
-  "source_file": "R:\\New folder (2)\\my-project\\data/raw\\sample_tableau_dataset.csv",
+  "source_file": "R:\\\\New folder (2)\\\\my-project\\data/raw\\sample_tableau_dataset.csv",
   "table_name": "sample_tableau_dataset_clean",
   "dataset_type": "sales",
+  "dataset_description": "This dataset contains sales and profit information categorized by product type and region over a series of dates.",
   "row_count": 200,
   "column_count": 5,
   "columns": {
@@ -15,7 +16,8 @@
         "Technology"
       ],
       "unique_count": 3,
-      "total_count": 200
+      "total_count": 200,
+      "business_meaning": "The type of product sold, such as Technology or Furniture."
     },
     "Region": {
       "type": "object",
@@ -27,11 +29,12 @@
         "South"
       ],
       "unique_count": 4,
-      "total_count": 200
+      "total_count": 200,
+      "business_meaning": "The geographical area where the sales occurred."
     },
     "Sales": {
       "type": "int64",
-      "semantic": "generic",
+      "semantic": "money",
       "nullable": false,
       "sample_values": [
         3220,
@@ -39,11 +42,12 @@
         1343
       ],
       "unique_count": 194,
-      "total_count": 200
+      "total_count": 200,
+      "business_meaning": "The total revenue generated from sales."
     },
     "Profit": {
       "type": "int64",
-      "semantic": "generic",
+      "semantic": "money",
       "nullable": false,
       "sample_values": [
         865,
@@ -51,7 +55,8 @@
         198
       ],
       "unique_count": 190,
-      "total_count": 200
+      "total_count": 200,
+      "business_meaning": "The net profit earned after deducting costs from sales."
     },
     "Date": {
       "type": "datetime",
@@ -63,13 +68,18 @@
         "2023-01-03"
       ],
       "unique_count": 200,
-      "total_count": 200
+      "total_count": 200,
+      "business_meaning": "The date on which the sales and profit data were recorded."
     }
   },
-  "detected_at": "2026-04-03T18:44:28.274101",
+  "detected_at": "2026-04-06T00:25:43.431739",
   "suggested_queries": [
-    "Show total Sales by Category",
-    "Top 5 by Sales",
-    "Monthly trend of Sales"
-  ]
+    "What are the total sales and profit by category?",
+    "How do sales vary by region over time?",
+    "Which category has the highest profit margin?",
+    "What is the trend of sales over the recorded dates?",
+    "How do sales and profit compare between different regions?"
+  ],
+  "llm_used": true,
+  "detection_method": "llm"
 }

@@ -7,7 +7,7 @@ const JWT_SECRET = 'dataforge-jwt-secret-key-2024';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();3
+    const body = await request.json();
     const { action, email, password, name } = body;
 
     if (action === 'signup') {

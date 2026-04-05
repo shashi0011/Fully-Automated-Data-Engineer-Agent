@@ -34,10 +34,12 @@ class DuckDBTool:
         self.current_table_name = "data_clean"
 
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Get a DuckDB connection with query timeout."""
         os.makedirs(os.path.dirname(WAREHOUSE_DB_PATH), exist_ok=True)
         con = duckdb.connect(WAREHOUSE_DB_PATH)
-        con.execute(f"SET timeout={QUERY_TIMEOUT * 1000}")
+        try:
+            con.execute(f"SET timeout={QUERY_TIMEOUT * 1000}")
+        except duckdb.CatalogException:
+            pass
         return con
 
     def set_data_file(self, file_path: str) -> str:

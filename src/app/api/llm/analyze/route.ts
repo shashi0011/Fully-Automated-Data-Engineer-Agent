@@ -12,7 +12,14 @@ export async function POST() {
       },
     });
     
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error('Non-JSON response:', text.slice(0, 200));
+      return NextResponse.json({ error: 'Backend returned invalid response' }, { status: response.status || 502 });
+    }
     return NextResponse.json(data);
   } catch (error) {
     console.error('LLM analyze error:', error);

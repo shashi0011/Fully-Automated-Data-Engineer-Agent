@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { 
-  Menu, 
-  X, 
-  Zap, 
-  GitBranch, 
-  Database, 
+import {
+  Menu,
+  X,
+  Zap,
+  GitBranch,
+  Database,
   BarChart3,
   Moon,
   Sun
@@ -22,9 +22,39 @@ const navLinks = [
   { href: "#pricing", label: "Pricing" },
 ];
 
+function ThemeToggle() {
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" disabled>
+        <Sun className="h-5 w-5" />
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+    >
+      {resolvedTheme === "dark" ? (
+        <Sun className="h-5 w-5" />
+      ) : (
+        <Moon className="h-5 w-5" />
+      )}
+    </Button>
+  );
+}
+
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
@@ -53,17 +83,7 @@ export function Navbar() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
+            <ThemeToggle />
 
             <div className="hidden md:flex items-center gap-2">
               <Link href="/login">
@@ -115,8 +135,6 @@ export function Navbar() {
 }
 
 export function AppNavbar() {
-  const { theme, setTheme } = useTheme();
-
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center px-4 md:px-6">
@@ -130,17 +148,7 @@ export function AppNavbar() {
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
-          </Button>
+          <ThemeToggle />
         </div>
       </div>
     </header>

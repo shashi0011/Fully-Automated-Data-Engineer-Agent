@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-const SAMPLES_DIR = '/home/z/my-project/data/samples';
-const RAW_DIR = '/home/z/my-project/data/raw';
+const BASE_DIR = process.cwd();
+
+const SAMPLES_DIR = path.join(BASE_DIR, 'data', 'samples');
+const RAW_DIR = path.join(BASE_DIR, 'data', 'raw');
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
@@ -43,14 +45,22 @@ export async function POST(request: NextRequest) {
       body: formData
     });
     
-    const data = await uploadResponse.json();
+    const text = await uploadResponse.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error('Non-JSON response:', text.slice(0, 200));
+      return NextResponse.json({ error: 'Backend returned invalid response' }, { status: uploadResponse.status || 502 });
+    }
     
     return NextResponse.json({
       status: 'success',
       message: `Loaded sample: ${filename}`,
       ...data
-    });
-  } catch (error) {
+   } );
+  
+     } catch (error) {
     console.error('Load sample error:', error);
     return NextResponse.json({ error: 'Failed to load sample' }, { status: 500 });
   }

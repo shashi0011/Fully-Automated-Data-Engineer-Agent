@@ -44,6 +44,8 @@ import {
   Download,
   Search,
   Eye
+  FileCode
+
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { AuthDialog } from "@/components/auth-dialog";
@@ -1055,7 +1057,9 @@ function WarehouseView() {
 
 // Landing Page Component
 function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
-  const { theme, setTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
@@ -1093,8 +1097,8 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
               <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-                {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              <Button variant="ghost" size="icon" disabled={!mounted} onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
+                {mounted && resolvedTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
               <Button onClick={() => setAuthDialogOpen(true)} className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600">
                 Get Started
@@ -1351,12 +1355,19 @@ export default function DataForgeApp() {
 
   const handleLLMAnalysis = async () => {
     setLlmLoading(true);
-    try { const response = await fetch("/api/llm/analyze", { method: "POST" }); const data = await response.json(); setLlmAnalysis(data.analysis); } catch (error) { console.error("LLM analysis failed:", error); } finally { setLlmLoading(false); }
+    try { const response = await fetch("/api/llm/analyze", { method: "POST" }); const text = await response.text(); let data: any; try { data = JSON.parse(text); } catch { console.error("LLM invalid JSON:", text.slice(0, 200)); return; } setLlmAnalysis(data.analysis); } catch (error) { console.error("LLM analysis failed:", error); } finally { setLlmLoading(false); }
   };
 
   const handleGenerateDBT = async () => {
     setDbtLoading(true);
-    try { const response = await fetch("/api/llm/generate-dbt", { method: "POST" }); const data = await response.json(); setDbtModels(data.models); fetchFiles(); } catch (error) { console.error("dbt generation failed:", error); } finally { setDbtLoading(false); }
+    try {
+      const response = await fetch("/api/llm/generate-dbt", { method: "POST" });
+      const text = await response.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { console.error("dbt invalid JSON:", text.slice(0, 200)); return; }
+      if (data.status === "success" && data.models) { setDbtModels(data.models); fetchFiles(); }
+      else { console.error("dbt generation error:", data.message || data.error || "Unknown error"); }
+    } catch (error) { console.error("dbt generation failed:", error); } finally { setDbtLoading(false); }
   };
 
   const handleExecuteCommand = async (command: string) => {
@@ -1382,6 +1393,7 @@ export default function DataForgeApp() {
     { id: "analysis", label: "AI Analysis", icon: Bot },
     { id: "agent", label: "Agent Workspace", icon: Zap },
     { id: "pipelines", label: "Pipelines", icon: GitBranch },
+    { id: "downloads", label: "Downloads", icon: Download },
     { id: "dbt", label: "dbt Models", icon: Code },
     { id: "airbyte", label: "Data Sources", icon: Cloud },
     { id: "warehouse", label: "Warehouse", icon: Database },
@@ -1614,13 +1626,18 @@ export default function DataForgeApp() {
               )}
 
               {/* Pipelines Tab */}
+              
               {activeTab === "pipelines" && (
                 <>
                   <div className="flex items-center gap-2"><GitBranch className="h-6 w-6 text-blue-500" /><h1 className="text-2xl font-bold">Pipelines</h1></div>
-                  <PipelineDAG />
+                  <PipelineDAG status={pipelineStatus} onRun={handleExecuteCommand.bind(null, "run pipeline")} isRunning={isLoading} />
                 </>
               )}
-
+              {/* Downloads Tab */}
+              {activeTab === "downloads" && (
+                <DownloadsSection schema={schema} />
+              )}
+              
               {/* dbt Models Tab */}
               {activeTab === "dbt" && (
                 <>

@@ -173,18 +173,24 @@ export function FileExplorer({ files: externalFiles, onRefresh: externalOnRefres
     }
   };
 
-  const handleDownloadFile = (file: FileItem) => {
-    if (viewRawContent) {
-      const blob = new Blob([viewRawContent], { type: "text/plain" });
+  const handleDownloadFile = async (file: FileItem) => {
+    try {
+      const response = await fetch(`/api/download?path=${encodeURIComponent(file.path)}`);
+      if (!response.ok) {
+        console.error("Download failed:", response.status);
+        return;
+      }
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = file.name;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } else {
-      // Download without content - open in new tab
-      window.open(`/api/files?path=${encodeURIComponent(file.path)}`, "_blank");
+    } catch (error) {
+      console.error("Download failed:", error);
     }
   };
 

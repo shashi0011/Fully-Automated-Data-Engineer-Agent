@@ -2,7 +2,7 @@
 DataForge AI - FastAPI Backend (Full LLM + XLSX + Airbyte)
 Main application entry point - Works with ANY dataset
 """
-
+from fastapi.responses import FileResponse   # ADD THIS LINE
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -59,7 +59,7 @@ schema_detector = SchemaDetector()
 llm_agent = LLMAgent()
 xlsx_processor = XLSXProcessor()
 airbyte_connector = AirbyteConnector()
-
+report_tool = ReportTool()
 
 # ============ Request/Response Models ============
 
@@ -214,65 +214,83 @@ async def upload_file(file: UploadFile = File(...)):
 @app.post("/upload-and-process")
 async def upload_and_process(file: UploadFile = File(...), use_llm: bool = True):
     """Upload a file and automatically process it with LLM analysis"""
-    # Validate file type
-    allowed_extensions = ['.csv', '.json', '.xlsx', '.xls', '.xlsm']
-    file_ext = os.path.splitext(file.filename)[1].lower()
+    try:
+        # Validate file type
+        allowed_extensions = ['.csv', '.json', '.xlsx', '.xls', '.xlsm']
+        file_ext = os.path.splitext(file.filename)[1].lower()
 
-    if file_ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail="Unsupported file type")
+        if file_ext not in allowed_extensions:
+            raise HTTPException(status_code=400, detail="Unsupported file type")
 
-    # Save file using BASE_PATH from utils
-    upload_dir = os.path.join(BASE_PATH, "data/raw")
-    os.makedirs(upload_dir, exist_ok=True)
+        # Save file using BASE_PATH from utils
+        upload_dir = os.path.join(BASE_PATH, "data/raw")
+        os.makedirs(upload_dir, exist_ok=True)
 
-    file_path = os.path.join(upload_dir, file.filename)
+        file_path = os.path.join(upload_dir, file.filename)
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-    # Handle XLSX files
-    csv_path = file_path
-    if file_ext in ['.xlsx', '.xls', '.xlsm']:
-        convert_result = xlsx_processor.to_csv(file_path)
-        if convert_result.get("output_files"):
-            csv_path = convert_result["output_files"][0]["path"]
+        # Handle XLSX files
+        csv_path = file_path
+        if file_ext in ['.xlsx', '.xls', '.xlsm']:
+            convert_result = xlsx_processor.to_csv(file_path)
+            if convert_result.get("output_files"):
+                csv_path = convert_result["output_files"][0]["path"]
 
-    # Detect schema
-    schema = schema_detector.detect_schema_from_file(csv_path)
+        # Detect schema
+        schema = schema_detector.detect_schema_from_file(csv_path)
 
-    if "error" in schema:
-        return {"status": "error", "message": schema["error"]}
+        if "error" in schema:
+            return {"status": "error", "message": schema["error"]}
 
-    # Ingest into warehouse
-    ingest_result = await duckdb_tool.ingest_file(csv_path)
+        # Ingest into warehouse
+        ingest_result = await duckdb_tool.ingest_file(csv_path)
 
-    if "error" in ingest_result:
-        return {"status": "error", "message": ingest_result["error"]}
+        if "error" in ingest_result:
+            return {"status": "error", "message": ingest_result["error"]}
 
-    # Transform data
-    transform_result = await duckdb_tool.transform()
-
-    # LLM Analysis
-    llm_analysis = None
-    if use_llm:
+        # Transform data
+        transform_result = await duckdb_tool.transform()
+            # Auto-generate pipeline.py
         try:
-            sample_data = await duckdb_tool.get_sample_data(limit=100)
-            llm_analysis = await llm_agent.analyze_dataset(
-                schema,
-                sample_data.get("data", [])
-            )
-        except Exception as e:
-            print(f"LLM analysis error: {e}")
+            from agent.pipeline_generator import PipelineGenerator
+            generator = PipelineGenerator()
+            pipeline_code = generator.generate(["ingest", "transform", "report"])
+        except Exception as pipeline_err:
+            print(f"Pipeline generation error: {pipeline_err}")
+    
+        # Auto-generate report
+        try:
+            report_result = await report_tool.generate()
+            print(f"Report generation: {report_result}")
+        except Exception as report_err:
+            print(f"Report generation error: {report_err}")
 
-    return {
-        "status": "success",
-        "message": f"File uploaded and processed: {file.filename}",
-        "file_path": file_path,
-        "schema": schema,
-        "ingest": ingest_result,
-        "transform": transform_result,
-        "llm_analysis": llm_analysis
-    }
+        # LLM Analysis
+        llm_analysis = None
+        if use_llm:
+            try:
+                sample_data = await duckdb_tool.get_sample_data(limit=100)
+                llm_analysis = await llm_agent.analyze_dataset(
+                    schema,
+                    sample_data.get("data", [])
+                )
+            except Exception as e:
+                print(f"LLM analysis error: {e}")
+
+        return {
+            "status": "success",
+            "message": f"File uploaded and processed: {file.filename}",
+            "file_path": file_path,
+            "schema": schema,
+            "ingest": ingest_result,
+            "transform": transform_result,
+            "llm_analysis": llm_analysis
+        }
+    except Exception as e:
+        print(f"Upload error: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 # ============ XLSX ROUTES ============
@@ -1058,6 +1076,23 @@ async def get_warehouse_sample(limit: int = 20):
     result = await duckdb_tool.get_sample_data(limit=limit)
     return result
 
+@app.get("/download/{file_path:path}")
+async def download_file(file_path: str):
+    """Download a file with proper Content-Disposition header"""
+    from fastapi.responses import FileResponse
+    
+    full_path = os.path.realpath(os.path.join(BASE_PATH, file_path))
+    if not full_path.startswith(os.path.realpath(BASE_PATH) + os.sep):
+        raise HTTPException(status_code=403, detail="Access denied: path outside project directory")
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    filename = os.path.basename(full_path)
+    return FileResponse(
+        path=full_path,
+        filename=filename,
+        media_type="application/octet-stream"
+    )
 
 if __name__ == "__main__":
     import uvicorn

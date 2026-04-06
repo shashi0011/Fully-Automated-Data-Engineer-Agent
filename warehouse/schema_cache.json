@@ -1,85 +1,146 @@
 {
-  "source_file": "R:\\\\New folder (2)\\\\my-project\\data/raw\\sample_tableau_dataset.csv",
-  "table_name": "sample_tableau_dataset_clean",
-  "dataset_type": "sales",
-  "dataset_description": "This dataset contains sales and profit information categorized by product type and region over a series of dates.",
-  "row_count": 200,
-  "column_count": 5,
+  "source_file": "R:\\\\New folder (2)\\\\my-project\\data/raw\\cleaned_dataset.csv",
+  "table_name": "cleaned_dataset_clean",
+  "dataset_type": "generic",
+  "dataset_description": "A dataset containing user recordings with associated metadata and URLs for audio and transcription files.",
+  "row_count": 104,
+  "column_count": 7,
   "columns": {
-    "Category": {
+    "user_id": {
+      "type": "int64",
+      "semantic": "id",
+      "nullable": false,
+      "sample_values": [
+        245746,
+        291038,
+        246004
+      ],
+      "unique_count": 102,
+      "total_count": 104,
+      "null_count": 0,
+      "null_pct": 0.0,
+      "business_meaning": "Unique identifier for each user in the dataset."
+    },
+    "recording_id": {
+      "type": "int64",
+      "semantic": "id",
+      "nullable": false,
+      "sample_values": [
+        825780,
+        825727,
+        988596
+      ],
+      "unique_count": 104,
+      "total_count": 104,
+      "null_count": 0,
+      "null_pct": 0.0,
+      "business_meaning": "Unique identifier for each recording made by the user."
+    },
+    "language": {
       "type": "object",
       "semantic": "category",
       "nullable": false,
       "sample_values": [
-        "Technology",
-        "Furniture",
-        "Technology"
+        "hi",
+        "hi",
+        "hi"
       ],
-      "unique_count": 3,
-      "total_count": 200,
-      "business_meaning": "The type of product sold, such as Technology or Furniture."
+      "unique_count": 1,
+      "total_count": 104,
+      "null_count": 0,
+      "null_pct": 0.0,
+      "business_meaning": "Language in which the recording is made."
     },
-    "Region": {
+    "duration": {
+      "type": "int64",
+      "semantic": "percentage",
+      "nullable": false,
+      "sample_values": [
+        443,
+        443,
+        475
+      ],
+      "unique_count": 48,
+      "total_count": 104,
+      "null_count": 0,
+      "null_pct": 0.0,
+      "business_meaning": "Duration of the recording, represented as a percentage of a standard length."
+    },
+    "new_rec_url": {
       "type": "object",
-      "semantic": "location",
+      "semantic": "url",
       "nullable": false,
       "sample_values": [
-        "West",
-        "North",
-        "South"
+        "https://storage.googleapis.com/upload_goai/967179/825780_audio.wav",
+        "https://storage.googleapis.com/upload_goai/967179/825727_audio.wav",
+        "https://storage.googleapis.com/upload_goai/1147542/988596_audio.wav"
       ],
-      "unique_count": 4,
-      "total_count": 200,
-      "business_meaning": "The geographical area where the sales occurred."
+      "unique_count": 104,
+      "total_count": 104,
+      "null_count": 0,
+      "null_pct": 0.0,
+      "business_meaning": "URL link to access the audio recording."
     },
-    "Sales": {
-      "type": "int64",
-      "semantic": "money",
+    "new_transcription_url": {
+      "type": "object",
+      "semantic": "url",
       "nullable": false,
       "sample_values": [
-        3220,
-        116,
-        1343
+        "https://storage.googleapis.com/upload_goai/967179/825780_transcription.json",
+        "https://storage.googleapis.com/upload_goai/967179/825727_transcription.json",
+        "https://storage.googleapis.com/upload_goai/1147542/988596_transcription.json"
       ],
-      "unique_count": 194,
-      "total_count": 200,
-      "business_meaning": "The total revenue generated from sales."
+      "unique_count": 104,
+      "total_count": 104,
+      "null_count": 0,
+      "null_pct": 0.0,
+      "business_meaning": "URL link to access the transcription of the audio recording."
     },
-    "Profit": {
-      "type": "int64",
-      "semantic": "money",
+    "new_metadata_url": {
+      "type": "object",
+      "semantic": "url",
       "nullable": false,
       "sample_values": [
-        865,
-        -104,
-        198
+        "https://storage.googleapis.com/upload_goai/967179/825780_metadata.json",
+        "https://storage.googleapis.com/upload_goai/967179/825727_metadata.json",
+        "https://storage.googleapis.com/upload_goai/1147542/988596_metadata.json"
       ],
-      "unique_count": 190,
-      "total_count": 200,
-      "business_meaning": "The net profit earned after deducting costs from sales."
-    },
-    "Date": {
-      "type": "datetime",
-      "semantic": "datetime",
-      "nullable": false,
-      "sample_values": [
-        "2023-01-01",
-        "2023-01-02",
-        "2023-01-03"
-      ],
-      "unique_count": 200,
-      "total_count": 200,
-      "business_meaning": "The date on which the sales and profit data were recorded."
+      "unique_count": 104,
+      "total_count": 104,
+      "null_count": 0,
+      "null_pct": 0.0,
+      "business_meaning": "URL link to access the metadata associated with the audio recording."
     }
   },
-  "detected_at": "2026-04-06T00:25:43.431739",
+  "column_summary": {
+    "numeric": [
+      "duration"
+    ],
+    "categorical": [
+      "language"
+    ],
+    "date": [],
+    "text": [
+      "new_rec_url",
+      "new_transcription_url",
+      "new_metadata_url"
+    ],
+    "id": [
+      "user_id",
+      "recording_id"
+    ]
+  },
   "suggested_queries": [
-    "What are the total sales and profit by category?",
-    "How do sales vary by region over time?",
-    "Which category has the highest profit margin?",
-    "What is the trend of sales over the recorded dates?",
-    "How do sales and profit compare between different regions?"
+    "Average duration",
+    "Show top 10 by duration",
+    "Total duration by language",
+    "What are the most common languages in the recordings?",
+    "What is the distribution of recording durations?",
+    "How many records per language",
+    "How does the duration of recordings vary by user?",
+    "Distribution of language"
   ],
-  "llm_used": true,
-  "detection_method": "llm"
+  "detected_at": "2026-04-06T14:00:13.345671",
+  "detection_method": "llm_enhanced",
+  "llm_confidence": 0.95
 }

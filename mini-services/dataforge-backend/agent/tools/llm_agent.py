@@ -549,8 +549,14 @@ class LLMAgent:
     # ── Fallback: Heuristic Analysis ──────────────────────────────────────────
 
     def _generate_fallback_analysis(self, schema_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate a rich heuristic analysis when LLM is not available.
+        Returns detailed per-column analysis, quality metrics, and suggestions.
+        """
         columns = schema_info.get("columns", {})
         dataset_type = schema_info.get("dataset_type", "generic")
+        dataset_description = schema_info.get("dataset_description", f"{dataset_type} dataset")
+        row_count = schema_info.get("row_count", 0)
+        column_count = schema_info.get("column_count", len(columns))
 
         cats = categorize_columns(columns)
         numeric_cols = cats["numeric"]
@@ -559,80 +565,172 @@ class LLMAgent:
         text_cols = cats["text"]
         id_cols = cats["id"]
 
+        # ── Per-column analysis ──
         column_analysis: Dict[str, Dict[str, Any]] = {}
+        total_nulls = 0
+        total_issues = 0
+
         for col_name, col_info in columns.items():
             semantic = col_info.get("semantic", "generic")
             dtype = col_info.get("type", "")
+            nullable = col_info.get("nullable", False)
+            null_count = col_info.get("null_count", 0)
+            null_pct = col_info.get("null_pct", 0)
+            unique_count = col_info.get("unique_count", 0)
+            total_count = col_info.get("total_count", row_count)
+
+            total_nulls += null_count
             issues: List[str] = []
             recommendations: List[str] = []
 
-            nullable = col_info.get("nullable", True)
-            if nullable:
-                issues.append("Column allows NULL values")
-                recommendations.append("Consider whether NULLs need imputation")
+            # Data quality checks
+            if nullable and null_pct > 5:
+                issues.append(f"Contains {null_pct}% NULL values ({null_count} rows)")
+                total_issues += 1
+            elif nullable:
+                issues.append(f"Contains NULL values ({null_count} rows)")
 
+            if unique_count == total_count and total_count > 10:
+                issues.append("All values are unique — possible ID column")
+
+            # Business-meaningful descriptions
+            semantic_descriptions = {
+                "id": f"Unique identifier column ({dtype})",
+                "money": f"Monetary value column ({dtype}) — suitable for SUM, AVG aggregation",
+                "count": f"Numeric count/quantity column ({dtype})",
+                "score": f"Score/rating column ({dtype}) — useful for distribution analysis",
+                "percentage": f"Percentage/ratio column ({dtype})",
+                "datetime": f"Date/time column ({dtype}) — enables time-series analysis",
+                "category": f"Categorical dimension ({dtype}) — use for GROUP BY and filtering",
+                "location": f"Geographic location ({dtype}) — supports regional analysis",
+                "person": f"Person name column ({dtype})",
+                "email": f"Email address column ({dtype})",
+                "phone": f"Phone number column ({dtype})",
+                "url": f"URL/link column ({dtype})",
+                "text": f"Free-text column ({dtype}) — consider NLP analysis",
+                "medical_term": f"Medical/clinical term ({dtype})",
+                "generic": f"General-purpose column ({dtype})",
+            }
+
+            business_meaning = semantic_descriptions.get(semantic, f"{semantic} column ({dtype})")
+
+            # Recommendations based on semantic type
             if semantic in ("money", "count", "score", "percentage"):
-                recommendations.append("Consider aggregation metrics")
+                recommendations.extend([
+                    f"Use SUM({col_name}), AVG({col_name}) for aggregations",
+                    "Consider outlier detection and distribution analysis",
+                ])
             elif semantic in ("category", "location", "name"):
-                recommendations.append("Good candidate for grouping and filtering")
+                recommendations.extend([
+                    f"Use {col_name} as GROUP BY dimension",
+                    f"Check cardinality: {unique_count} unique values",
+                ])
             elif semantic == "datetime":
-                recommendations.append("Consider time-based trend analysis")
+                recommendations.extend([
+                    "Extract year/month for trend analysis",
+                    "Use strftime() for time-based grouping",
+                ])
             elif semantic == "id":
                 recommendations.append("Use as join key, not for aggregation")
+            elif semantic == "text":
+                recommendations.append("Consider text analysis or summarization")
+
+            # Quality score for this column
+            quality = "good"
+            if null_pct > 20:
+                quality = "poor"
+            elif null_pct > 5:
+                quality = "moderate"
 
             column_analysis[col_name] = {
                 "semantic_type": semantic,
-                "business_meaning": f"Contains {semantic} data ({dtype})",
-                "data_quality": "good" if not nullable else "moderate",
+                "business_meaning": business_meaning,
+                "data_quality": quality,
                 "issues": issues,
                 "recommendations": recommendations,
+                "statistics": {
+                    "unique_values": unique_count,
+                    "null_values": null_count,
+                    "null_percentage": round(null_pct, 1),
+                },
             }
 
+        # ── Overall quality score ──
+        overall_quality = 1.0
+        if row_count > 0:
+            null_ratio = total_nulls / (row_count * max(column_count, 1))
+            overall_quality = round(max(0.0, 1.0 - null_ratio - total_issues * 0.05), 2)
+
+        # ── Recommended transformations ──
         transformations: List[Dict[str, str]] = []
         if numeric_cols and category_cols:
-            transformations.append({
-                "type": "aggregate",
-                "description": f"Aggregate {numeric_cols[0]} by {category_cols[0]}",
-                "sql_template": f"SELECT {category_cols[0]}, SUM({numeric_cols[0]}) as total FROM table GROUP BY {category_cols[0]}",
-            })
+            for ncol in numeric_cols[:2]:
+                for ccol in category_cols[:2]:
+                    transformations.append({
+                        "type": "aggregate",
+                        "description": f"Aggregate {ncol} by {ccol}",
+                        "sql_template": f"SELECT {ccol}, SUM({ncol}) as total_{ncol} FROM table GROUP BY {ccol} ORDER BY total_{ncol} DESC",
+                    })
         if date_cols and numeric_cols:
             transformations.append({
                 "type": "derive",
                 "description": f"Time-based analysis of {numeric_cols[0]}",
-                "sql_template": f"SELECT strftime({date_cols[0]}, '%Y-%m') as period, SUM({numeric_cols[0]}) as total FROM table GROUP BY period",
+                "sql_template": f"SELECT strftime({date_cols[0]}, '%Y-%m') as period, SUM({numeric_cols[0]}) as total FROM table GROUP BY period ORDER BY period",
+            })
+        if total_nulls > 0:
+            transformations.append({
+                "type": "clean",
+                "description": f"Handle {total_nulls} NULL values across columns",
+                "sql_template": "SELECT * FROM table WHERE column IS NOT NULL",
             })
 
+        # ── Suggested metrics ──
         suggested_metrics: List[Dict[str, str]] = [
-            {"name": "Total Records", "description": "Count of all records", "formula": "COUNT(*)", "business_value": "Understand data volume"}
+            {"name": "Total Records", "description": "Count of all records in the dataset", "formula": "COUNT(*)", "business_value": "Understand overall data volume"},
         ]
         if numeric_cols:
-            suggested_metrics.append({
-                "name": f"Total {numeric_cols[0]}", "description": f"Sum of all {numeric_cols[0]} values",
-                "formula": f"SUM({numeric_cols[0]})", "business_value": "Understand total magnitude"
-            })
-
-        insights = [f"This appears to be a {dataset_type} dataset with {len(columns)} columns"]
-        if numeric_cols:
-            insights.append(f"Found {len(numeric_cols)} numeric column(s): {', '.join(numeric_cols)}")
+            for ncol in numeric_cols[:3]:
+                suggested_metrics.extend([
+                    {"name": f"Total {ncol}", "description": f"Sum of all {ncol} values", "formula": f"SUM({ncol})", "business_value": f"Understand total magnitude of {ncol}"},
+                    {"name": f"Average {ncol}", "description": f"Mean of {ncol}", "formula": f"AVG({ncol})", "business_value": f"Understand central tendency of {ncol}"},
+                ])
         if category_cols:
-            insights.append(f"Found {len(category_cols)} categorical column(s): {', '.join(category_cols)}")
+            suggested_metrics.append({"name": f"Distinct {category_cols[0]}", "description": f"Number of unique {category_cols[0]} values", "formula": f"COUNT(DISTINCT {category_cols[0]})", "business_value": f"Understand cardinality of {category_cols[0]}"})
+
+        # ── Natural language insights ──
+        insights = [
+            f"This is a {dataset_description}",
+            f"Found {column_count} columns: {len(numeric_cols)} numeric, {len(category_cols)} categorical, {len(date_cols)} date/time, {len(text_cols)} text",
+        ]
+        if total_nulls > 0:
+            null_pct_overall = round(total_nulls / max(row_count * column_count, 1) * 100, 1)
+            insights.append(f"Data quality: {null_pct_overall}% of values are NULL ({total_nulls} total nulls across all columns)")
+        if numeric_cols:
+            insights.append(f"Primary numeric columns for analysis: {', '.join(numeric_cols[:5])}")
+        if category_cols:
+            insights.append(f"Key grouping dimensions: {', '.join(category_cols[:5])}")
         if date_cols:
-            insights.append(f"Found {len(date_cols)} date column(s): {', '.join(date_cols)}")
+            insights.append(f"Time-based analysis possible using: {', '.join(date_cols)}")
 
         return {
             "llm_used": False,
-            "error": "LLM not available — using heuristic analysis",
             "dataset_type": dataset_type,
+            "dataset_description": dataset_description,
             "dataset_subtype": "standard",
-            "confidence_score": 0.0,
+            "confidence_score": 0.6,
             "column_analysis": column_analysis,
             "data_quality_summary": {
-                "overall_score": 0.0,
-                "issues": ["LLM unavailable — data quality not assessed"],
-                "recommendations": ["Connect an LLM API key for full analysis"],
+                "overall_score": overall_quality,
+                "issues": [f"{total_nulls} total NULL values across {column_count} columns"] if total_nulls > 0 else ["No data quality issues detected"],
+                "recommendations": ["Consider imputing NULL values"] if total_nulls > 0 else ["Data quality looks good"],
+                "null_stats": {
+                    "total_nulls": total_nulls,
+                    "columns_with_nulls": sum(1 for c in columns.values() if c.get("nullable", False)),
+                    "overall_null_percentage": round(total_nulls / max(row_count * column_count, 1) * 100, 1),
+                },
             },
             "recommended_transformations": transformations,
-            "suggested_metrics": suggested_metrics,
+            "suggested_metrics": suggested_metrics[:6],
             "natural_language_insights": insights,
         }
 
@@ -792,7 +890,6 @@ class LLMAgent:
 
         return {
             "llm_used": False,
-            "error": "LLM not available — using template-based dbt generation",
             "models": models,
             "schema_yml": schema_yml,
             "tests": [f"Unique and not_null test on {pk_col}", f"Not_null test on {agg_col}"],
@@ -912,7 +1009,6 @@ if __name__ == "__main__":
 
         return {
             "llm_used": False,
-            "error": "LLM not available — using template-based pipeline generation",
             "pipeline_code": pipeline_code,
             "config": {"schedule": "0 6 * * *", "retries": 3, "timeout": 3600},
             "description": f"Template pipeline for {dataset_type} data with extraction, cleaning, transformation, and reporting",

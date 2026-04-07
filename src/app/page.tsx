@@ -60,10 +60,11 @@ import { StatsCards } from "@/components/dataforge/stats-cards";
 // Types
 interface ExecutionResult {
   status: string;
-  command: string;
+  command?: string;
   files: string[];
   logs: string[];
   duration?: number;
+  message?: string;
 }
 
 interface FileItem {
@@ -363,6 +364,43 @@ function LLMAnalysisDisplay({ analysis, isLoading }: { analysis: LLMAnalysis | n
                   <p className="text-xs mt-1"><strong>Formula:</strong> {metric.formula}</p>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {analysis.column_analysis && Object.keys(analysis.column_analysis).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Table className="h-4 w-4 text-blue-500" />
+              Column Quality
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto scroll-smooth pb-2">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="py-2 pr-4">Column</th>
+                    <th className="py-2 pr-4">Semantic</th>
+                    <th className="py-2 pr-4">Quality</th>
+                    <th className="py-2 pr-4">Key Issues</th>
+                    <th className="py-2 pr-4">Recommendations</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(analysis.column_analysis).map(([colName, col]) => (
+                    <tr key={colName} className="border-b align-top">
+                      <td className="py-2 pr-4 font-medium whitespace-nowrap">{colName}</td>
+                      <td className="py-2 pr-4 whitespace-nowrap">{col.semantic_type}</td>
+                      <td className="py-2 pr-4 whitespace-nowrap">{col.data_quality}</td>
+                      <td className="py-2 pr-4">{(col.issues || []).slice(0, 2).join(" | ") || "-"}</td>
+                      <td className="py-2 pr-4">{(col.recommendations || []).slice(0, 2).join(" | ") || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
@@ -719,7 +757,7 @@ function DBTModelsDisplay({ models, isLoading }: { models: Array<{ path: string;
 }
 
 // File Upload Component (Enhanced with XLSX support)
-function FileUploader({ onUploadComplete }: { onUploadComplete: () => void }) {
+function FileUploader({ onUploadComplete }: { onUploadComplete: (result?: any) => void }) {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
@@ -743,7 +781,7 @@ function FileUploader({ onUploadComplete }: { onUploadComplete: () => void }) {
       const result = await response.json();
       
       if (result.status === 'success') {
-        onUploadComplete();
+        onUploadComplete(result);
       }
     } catch (error) {
       console.error('Upload failed:', error);
@@ -1526,6 +1564,7 @@ export default function DataForgeApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [workspaceFiles, setWorkspaceFiles] = useState<FileItem[]>([]);
   // ✅ FIX: Track selected active file
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -1543,6 +1582,82 @@ export default function DataForgeApp() {
     if (currentView === "app") { fetchFiles(); fetchStats(); fetchChartData(); fetchSchema(); }
   }, [currentView]);
 
+  const toRelativePath = (path: string): string => {
+    const normalized = path.replaceAll("\\", "/");
+    const marker = "/my-project/";
+    const idx = normalized.toLowerCase().lastIndexOf(marker);
+    if (idx >= 0) {
+      return normalized.slice(idx + marker.length);
+    }
+    const dataIdx = normalized.toLowerCase().indexOf("data/");
+    if (dataIdx >= 0) {
+      return normalized.slice(dataIdx);
+    }
+    return normalized;
+  };
+
+  const isDataFile = (file: FileItem | null) => {
+    if (!file) return false;
+    const type = (file.type || "").toLowerCase();
+    return ["csv", "json", "xlsx", "xls", "xlsm"].includes(type);
+  };
+
+  const clearWorkspaceContext = () => {
+    setExecutionResult(null);
+    setWorkspaceFiles([]);
+    setPipelineStatus("idle");
+  };
+
+  const setActiveFileContext = async (file: FileItem) => {
+    const filePath = toRelativePath(file.path);
+    const response = await fetch("/api/active-file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_path: filePath }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.status === "error") {
+      throw new Error(payload?.message || payload?.error || payload?.detail || "Failed to set active file");
+    }
+  };
+
+  const handleSelectFile = async (file: FileItem, resetWorkspace = false) => {
+    setSelectedFile(file);
+    if (resetWorkspace) {
+      clearWorkspaceContext();
+    }
+    if (isDataFile(file)) {
+      try {
+        await setActiveFileContext(file);
+        await fetchSchema();
+        await fetchStats();
+      } catch (error) {
+        console.error("Failed to activate selected file:", error);
+      }
+    }
+  };
+
+  const activateUploadedFile = async (uploadResult?: any) => {
+    const uploadedPath = uploadResult?.file_path ? toRelativePath(uploadResult.file_path) : null;
+    if (uploadedPath) {
+      const uploadedFile: FileItem = {
+        name: uploadedPath.split("/").pop() || uploadedPath,
+        path: uploadedPath,
+        type: uploadedPath.split(".").pop() || "csv",
+        category: "raw_data",
+        size: 0,
+      };
+      await handleSelectFile(uploadedFile, true);
+      return;
+    }
+
+    const latest = await fetch(`/api/files?_=${Date.now()}`).then((r) => r.json()).catch(() => ({ files: [] }));
+    const rawFiles: FileItem[] = (latest.files || []).filter((f: FileItem) => f.category === "raw_data");
+    if (rawFiles.length > 0) {
+      await handleSelectFile(rawFiles[rawFiles.length - 1], true);
+    }
+  };
+
   // ✅ FIX: Auto-select first uploaded raw file
   const fetchFiles = async () => {
     try {
@@ -1556,7 +1671,7 @@ export default function DataForgeApp() {
       if (!selectedFile) {
         const rawFiles = fetchedFiles.filter((f: FileItem) => f.category === "raw_data");
         if (rawFiles.length > 0) {
-          setSelectedFile(rawFiles[rawFiles.length - 1]);
+          await handleSelectFile(rawFiles[rawFiles.length - 1]);
         }
       }
     } catch (error) {
@@ -1581,7 +1696,17 @@ export default function DataForgeApp() {
 
   const handleLLMAnalysis = async () => {
     setLlmLoading(true);
-    try { const response = await fetch("/api/llm/analyze", { method: "POST" }); const text = await response.text(); let data: any; try { data = JSON.parse(text); } catch { console.error("LLM invalid JSON:", text.slice(0, 200)); return; } setLlmAnalysis(data.analysis); } catch (error) { console.error("LLM analysis failed:", error); } finally { setLlmLoading(false); }
+    try {
+      const response = await fetch("/api/llm/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active_file: isDataFile(selectedFile) ? toRelativePath(selectedFile!.path) : null }),
+      });
+      const text = await response.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { console.error("LLM invalid JSON:", text.slice(0, 200)); return; }
+      setLlmAnalysis(data.analysis);
+    } catch (error) { console.error("LLM analysis failed:", error); } finally { setLlmLoading(false); }
   };
 
   const handleGenerateDBT = async () => {
@@ -1599,25 +1724,38 @@ export default function DataForgeApp() {
   const handleExecuteCommand = async (command: string) => {
     setIsLoading(true); 
     setPipelineStatus("running");
+    setWorkspaceFiles([]);
     
     try {
       const response = await fetch("/api/agent", { 
         method: "POST", 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ command }) 
+        body: JSON.stringify({ command, active_file: isDataFile(selectedFile) ? toRelativePath(selectedFile!.path) : null }) 
       });
       
-      const result = await response.json(); 
-      setExecutionResult(result); 
-      setPipelineStatus(result.status === "success" ? "success" : "error");
+      const result = await response.json();
+      const normalized = (result?.data && result?.status === "success")
+        ? ({ ...result.data, status: result.data.status || "success", message: result.message || result.data.message } as ExecutionResult)
+        : (result as ExecutionResult);
+
+      setExecutionResult(normalized);
+      setPipelineStatus(normalized.status === "success" ? "success" : "error");
       
       // ✅ FIX: Increased timeout and sequential refresh for successful executions
-      if (result.status === "success") {
+      if (normalized.status === "success") {
         setTimeout(async () => { 
           await fetchFiles(); 
           await fetchStats(); 
           await fetchChartData(); 
           await fetchSchema(); 
+          const generatedSet = new Set((normalized.files || []).map((p) => toRelativePath(p)));
+          if (generatedSet.size > 0) {
+            const refreshed = await fetch(`/api/files?_=${Date.now()}`).then((r) => r.json()).catch(() => ({ files: [] }));
+            const matched = (refreshed.files || []).filter((f: FileItem) => generatedSet.has(toRelativePath(f.path)));
+            setWorkspaceFiles(matched);
+          } else {
+            setWorkspaceFiles([]);
+          }
         }, 2000); // Increased to 2 seconds to allow file system writes
       }
     } catch (error) { 
@@ -1629,7 +1767,11 @@ export default function DataForgeApp() {
   };
 
   const handleQuery = async (question: string): Promise<QueryResult> => {
-    const response = await fetch("/api/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
+    const response = await fetch("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, active_file: isDataFile(selectedFile) ? toRelativePath(selectedFile!.path) : null }),
+    });
     const result = await response.json();
     if (result.schema_info) { setSchema(result.schema_info); }
     return result;
@@ -1760,11 +1902,23 @@ export default function DataForgeApp() {
                         <CardDescription>Upload a CSV, JSON, or Excel file, or try a sample dataset</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <FileUploader onUploadComplete={() => { fetchFiles(); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                        <FileUploader onUploadComplete={async (uploadResult) => {
+                          clearWorkspaceContext();
+                          await fetchFiles();
+                          await fetchSchema();
+                          await fetchStats();
+                          await fetchChartData();
+                          await activateUploadedFile(uploadResult);
+                        }} />
                         <div className="flex items-center gap-2"><Separator className="flex-1" /><span className="text-sm text-muted-foreground">or try sample data</span><Separator className="flex-1" /></div>
                         {/* ✅ FIX: Hide samples when file is uploaded */}
                         {!selectedFile && (
-                          <SampleDatasets onSelect={(name: string) => { setSelectedFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                          <SampleDatasets onSelect={async (name: string) => {
+                            await handleSelectFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }, true);
+                            await fetchSchema();
+                            await fetchStats();
+                            await fetchChartData();
+                          }} />
                         )}
                       </CardContent>
                     </Card>
@@ -1811,11 +1965,23 @@ export default function DataForgeApp() {
                 <>
                   <div className="flex items-center gap-2"><Upload className="h-6 w-6 text-violet-500" /><h1 className="text-2xl font-bold">Upload Data</h1></div>
                   <p className="text-muted-foreground">Upload any CSV, JSON, or Excel file. The system will automatically detect the schema.</p>
-                  <FileUploader onUploadComplete={() => { fetchFiles(); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                  <FileUploader onUploadComplete={async (uploadResult) => {
+                    clearWorkspaceContext();
+                    await fetchFiles();
+                    await fetchSchema();
+                    await fetchStats();
+                    await fetchChartData();
+                    await activateUploadedFile(uploadResult);
+                  }} />
                   <div className="flex items-center gap-2"><Separator className="flex-1" /><span className="text-sm text-muted-foreground">or try sample datasets</span><Separator className="flex-1" /></div>
                   {/* ✅ FIX: Hide samples when file is uploaded */}
                   {!selectedFile && (
-                    <SampleDatasets onSelect={(name: string) => { setSelectedFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }); fetchSchema(); fetchStats(); fetchChartData(); }} />
+                    <SampleDatasets onSelect={async (name: string) => {
+                      await handleSelectFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }, true);
+                      await fetchSchema();
+                      await fetchStats();
+                      await fetchChartData();
+                    }} />
                   )}
                 </>
               )}
@@ -1865,8 +2031,8 @@ export default function DataForgeApp() {
                           <div className="mb-4 p-3 bg-muted rounded-lg max-h-48 overflow-y-auto"><p className="text-xs font-semibold text-muted-foreground mb-2">Execution Log</p>{executionResult.logs.map((log, i) => (<p key={i} className="text-xs font-mono text-muted-foreground">{log}</p>))}</div>
                         )}
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                          {files.map((file, i) => (<FileCard key={i} file={file} status={executionResult.status === "success" ? "success" : "error"} />))}
-                          {files.length === 0 && isLoading && (<><FileCardSkeleton /><FileCardSkeleton /><FileCardSkeleton /></>)}
+                          {workspaceFiles.map((file, i) => (<FileCard key={i} file={file} />))}
+                          {workspaceFiles.length === 0 && isLoading && (<><FileCardSkeleton /><FileCardSkeleton /><FileCardSkeleton /></>)}
                         </div>
                       </CardContent>
                     </Card>
@@ -1913,7 +2079,7 @@ export default function DataForgeApp() {
                 <>
                   <div className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-purple-500" /><h1 className="text-2xl font-bold">Reports</h1></div>
                   <p className="text-muted-foreground">View generated reports and analytics outputs.</p>
-                  <FileExplorer filterCategory="report" onSelectFile={setSelectedFile} activeFilePath={selectedFile?.path} />
+                  <FileExplorer filterCategory="report" onSelectFile={(file) => handleSelectFile(file)} activeFilePath={selectedFile?.path} />
                 </>
               )}
 
@@ -1927,7 +2093,7 @@ export default function DataForgeApp() {
                       <CardContent className="flex items-center gap-3 py-3 px-4"><Upload className="h-5 w-5 text-amber-500 shrink-0" /><p className="text-sm text-amber-700 dark:text-amber-400">No dataset loaded yet. <Button variant="link" className="h-auto p-0 text-amber-700 dark:text-amber-400 underline" onClick={() => setActiveTab("upload")}>Upload data</Button> to enable AI-powered queries.</p></CardContent>
                     </Card>
                   )}
-                  <QueryBox onQuery={handleQuery} />
+                  <QueryBox onQuery={handleQuery} activeFileName={selectedFile?.name || null} />
                   {schema && schema.suggested_queries && schema.suggested_queries.length > 0 && (
                     <Card className="shadow-lg">
                       <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4 text-violet-500" />AI-Suggested Queries for Your {schema.dataset_type.charAt(0).toUpperCase() + schema.dataset_type.slice(1)} Data</CardTitle><CardDescription>Click any suggestion to run it instantly</CardDescription></CardHeader>
@@ -1944,7 +2110,7 @@ export default function DataForgeApp() {
                 <>
                   <div className="flex items-center gap-2"><FolderOpen className="h-6 w-6 text-teal-500" /><h1 className="text-2xl font-bold">All Files</h1></div>
                   {/* ✅ FIX: Pass props so clicking a file sets it as active */}
-                  <FileExplorer onSelectFile={setSelectedFile} activeFilePath={selectedFile?.path} />
+                  <FileExplorer onSelectFile={(file) => handleSelectFile(file, true)} activeFilePath={selectedFile?.path} />
                 </>
               )}
             </div>

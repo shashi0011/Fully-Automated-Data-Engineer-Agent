@@ -120,6 +120,8 @@ async def ingest_data(state: AgentState) -> dict:
     from agent.tools.duckdb_tool import DuckDBTool
 
     try:
+        current_schema = state.get("schema") or load_schema()
+        preferred_source = current_schema.get("source_file")
         raw_files = sorted(
             glob.glob(os.path.join(RAW_DATA_DIR, "*.csv"))
             + glob.glob(os.path.join(RAW_DATA_DIR, "*.json")),
@@ -133,7 +135,7 @@ async def ingest_data(state: AgentState) -> dict:
                 "error_message": "No files found in data/raw/. Upload a dataset first.",
             }
 
-        file_path = raw_files[0]
+        file_path = preferred_source if preferred_source and os.path.exists(preferred_source) else raw_files[0]
         filename = os.path.basename(file_path)
 
         duckdb = DuckDBTool()
@@ -193,6 +195,7 @@ async def run_transform(state: AgentState) -> dict:
         raw_table = schema.get("raw_table", "")
         if not raw_table:
             logs_ingest = ["[Transform] No raw table found — auto-ingesting..."]
+            preferred_source = schema.get("source_file")
             import glob as _glob
             raw_files = sorted(
                 _glob.glob(os.path.join(RAW_DATA_DIR, "*.csv"))
@@ -205,7 +208,9 @@ async def run_transform(state: AgentState) -> dict:
                     "error_message": "No files found in data/raw/. Upload a dataset first.",
                     "pipeline_logs": ["ERROR: No raw files found to ingest"],
                 }
-            ingest_result = await duckdb.ingest_file(raw_files[0])
+            ingest_path = preferred_source if preferred_source and os.path.exists(preferred_source) else raw_files[0]
+            filename = os.path.basename(ingest_path)
+            ingest_result = await duckdb.ingest_file(ingest_path)
             if "error" in ingest_result:
                 return {
                     "status": "error",
@@ -213,7 +218,7 @@ async def run_transform(state: AgentState) -> dict:
                     "pipeline_logs": [f"ERROR: {ingest_result['error']}"],
                 }
             schema = load_schema()
-            logs_ingest.append(f"[Transform] Auto-ingested {os.path.basename(raw_files[0])}")
+            logs_ingest.append(f"[Transform] Auto-ingested {os.path.basename(ingest_path)}")
         else:
             logs_ingest = []
 
@@ -228,12 +233,18 @@ async def run_transform(state: AgentState) -> dict:
 
         files = ["warehouse/warehouse.duckdb"]
         if "output_file" in transform_result:
-            files.append(transform_result["output_file"])
+            output_file = transform_result["output_file"]
+            rel_output = os.path.relpath(output_file, BASE_PATH).replace("\\", "/")
+            files.append(rel_output)
 
         logs = logs_ingest + [
             f"[Transform] {transform_result.get('message', 'Completed')}",
-            f"[Transform] Clean data exported to {transform_result.get('output_file', 'N/A')}",
+            f"[Transform] Clean data exported to {files[-1] if len(files) > 1 else 'N/A'}",
         ]
+        if transform_result.get("llm_cleaning_used"):
+            logs.append("[Transform] Cleaning plan source: LLM")
+        else:
+            logs.append("[Transform] Cleaning plan source: heuristic fallback")
 
         return {
             "status": "success",
@@ -416,6 +427,7 @@ async def run_pipeline(state: AgentState) -> dict:
         files: List[str] = []
 
         # --- Step 1: Ingest ---
+        preferred_source = schema.get("source_file")
         raw_files = sorted(
             glob.glob(os.path.join(RAW_DATA_DIR, "*.csv"))
             + glob.glob(os.path.join(RAW_DATA_DIR, "*.json")),
@@ -423,8 +435,9 @@ async def run_pipeline(state: AgentState) -> dict:
             reverse=True,
         )
         if raw_files:
-            filename = os.path.basename(raw_files[0])
-            ingest_result = await duckdb.ingest_file(raw_files[0])
+            ingest_path = preferred_source if preferred_source and os.path.exists(preferred_source) else raw_files[0]
+            filename = os.path.basename(ingest_path)
+            ingest_result = await duckdb.ingest_file(ingest_path)
             if "error" in ingest_result:
                 logs.append(f"[Ingest] ERROR: {ingest_result['error']}")
                 # Don't stop — try to continue with existing warehouse data
@@ -448,8 +461,14 @@ async def run_pipeline(state: AgentState) -> dict:
                 "files_generated": files,
             }
         logs.append(f"[Transform] {transform_result.get('message', 'Done')}")
+        if transform_result.get("llm_cleaning_used"):
+            logs.append("[Transform] Cleaning plan source: LLM")
+        else:
+            logs.append("[Transform] Cleaning plan source: heuristic fallback")
         if "output_file" in transform_result:
-            files.append(transform_result["output_file"])
+            output_file = transform_result["output_file"]
+            rel_output = os.path.relpath(output_file, BASE_PATH).replace("\\", "/")
+            files.append(rel_output)
 
         # --- Step 3: Generate pipeline.py ---
         logs.append("[Pipeline] Generating pipeline code...")

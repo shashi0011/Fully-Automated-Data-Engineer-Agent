@@ -242,6 +242,109 @@ class LLMAgent:
             logger.error(f"[LLMAgent] analyze_dataset LLM error (primary + fallback): {exc}")
             return self._generate_fallback_analysis(schema_info)
 
+    async def generate_cleaning_plan(
+        self,
+        schema_info: Dict[str, Any],
+        sample_data: List[Dict[str, Any]],
+        session_id: str = "default",
+    ) -> Dict[str, Any]:
+        """Generate column-wise cleaning rules for transform.
+
+        The output is constrained JSON; SQL is still built safely in DuckDBTool.
+        """
+        if not self._available or self.llm_analysis is None:
+            return self._generate_fallback_cleaning_plan(schema_info)
+
+        columns = schema_info.get("columns", {}) or {}
+        if not columns:
+            return self._generate_fallback_cleaning_plan(schema_info)
+
+        sample_preview = json.dumps(sample_data[:8], indent=2, default=str) if sample_data else "[]"
+        col_lines = []
+        for col_name, col_info in columns.items():
+            dtype = col_info.get("type", "unknown")
+            semantic = col_info.get("semantic", "generic")
+            col_lines.append(f"- {col_name} (type={dtype}, semantic={semantic})")
+
+        allowed_ops = [
+            "trim",
+            "normalize_empty_to_null",
+            "parse_numeric",
+            "parse_date",
+            "lowercase",
+            "drop_row_if_null",
+        ]
+
+        system_prompt = (
+            "You are a data quality engineer. Build a conservative cleaning plan.\n"
+            "Return ONLY valid JSON with this schema:\n"
+            "{\n"
+            '  "column_rules": [\n'
+            '    {"column":"name","operations":["trim"],"reason":"..."}\n'
+            "  ],\n"
+            '  "global_rules": {"drop_duplicates": true},\n'
+            '  "notes": ["short note"]\n'
+            "}\n"
+            f"Allowed operations ONLY: {', '.join(allowed_ops)}.\n"
+            "Do not invent columns. Keep it strict and minimal."
+        )
+        user_prompt = (
+            "Columns:\n"
+            f"{chr(10).join(col_lines)}\n\n"
+            f"Sample rows:\n{sample_preview}\n\n"
+            "Create a high-quality cleaning plan for this dataset."
+        )
+
+        try:
+            content = await self._invoke_llm_with_fallback(
+                self.llm_analysis,
+                self.llm_analysis_fallback,
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            text = content if isinstance(content, str) else str(content)
+            text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE | re.DOTALL)
+            parsed = json.loads(text)
+        except Exception as exc:
+            logger.error(f"[LLMAgent] generate_cleaning_plan LLM error (primary + fallback): {exc}")
+            return self._generate_fallback_cleaning_plan(schema_info)
+
+        valid_columns = set(columns.keys())
+        valid_ops = set(allowed_ops)
+        clean_rules = []
+
+        for item in parsed.get("column_rules", []) if isinstance(parsed, dict) else []:
+            if not isinstance(item, dict):
+                continue
+            col = item.get("column")
+            if col not in valid_columns:
+                continue
+            ops = item.get("operations", [])
+            if not isinstance(ops, list):
+                continue
+            ops_clean = [op for op in ops if isinstance(op, str) and op in valid_ops]
+            if not ops_clean:
+                continue
+            clean_rules.append({
+                "column": col,
+                "operations": ops_clean,
+                "reason": str(item.get("reason", ""))[:240],
+            })
+
+        global_rules = parsed.get("global_rules", {}) if isinstance(parsed, dict) else {}
+        drop_duplicates = True if global_rules.get("drop_duplicates", True) else False
+        notes = parsed.get("notes", []) if isinstance(parsed, dict) else []
+        notes_clean = [str(n)[:240] for n in notes[:8] if isinstance(n, (str, int, float))]
+
+        return {
+            "llm_used": True,
+            "column_rules": clean_rules,
+            "global_rules": {"drop_duplicates": drop_duplicates},
+            "notes": notes_clean,
+        }
+
     # ── NL → SQL ──────────────────────────────────────────────────────────────
 
     async def generate_sql(
@@ -544,6 +647,45 @@ class LLMAgent:
             "generated_by": "fallback",
             "llm_used": False,
             "error": None,
+        }
+
+    def _generate_fallback_cleaning_plan(self, schema_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate deterministic cleaning rules when LLM is unavailable."""
+        columns = schema_info.get("columns", {}) or {}
+        rules: List[Dict[str, Any]] = []
+
+        for col_name, col_info in columns.items():
+            semantic = str(col_info.get("semantic", "generic")).lower()
+            dtype = str(col_info.get("type", "")).lower()
+            ops: List[str] = []
+
+            if semantic in ("money", "count", "score", "percentage") or any(
+                token in dtype for token in ("int", "double", "float", "decimal", "numeric")
+            ):
+                ops.extend(["normalize_empty_to_null", "parse_numeric"])
+            elif semantic == "datetime" or "date" in dtype or "time" in dtype:
+                ops.extend(["trim", "normalize_empty_to_null", "parse_date"])
+            else:
+                ops.extend(["trim", "normalize_empty_to_null"])
+                if semantic == "email":
+                    ops.append("lowercase")
+
+            if semantic in ("id", "name"):
+                ops.append("drop_row_if_null")
+
+            seen = set()
+            deduped = [op for op in ops if not (op in seen or seen.add(op))]
+            rules.append({
+                "column": col_name,
+                "operations": deduped,
+                "reason": "Heuristic fallback rule",
+            })
+
+        return {
+            "llm_used": False,
+            "column_rules": rules,
+            "global_rules": {"drop_duplicates": True},
+            "notes": ["Fallback cleaning plan used (LLM unavailable)."],
         }
 
     # ── Fallback: Heuristic Analysis ──────────────────────────────────────────

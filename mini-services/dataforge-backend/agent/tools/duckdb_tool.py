@@ -98,6 +98,7 @@ class DuckDBTool:
         # Update schema with table names
         schema["raw_table"] = raw_table
         schema["table_name"] = clean_table
+        schema["source_file"] = file_path
         save_schema(schema)
 
         self.current_table_name = clean_table
@@ -116,7 +117,7 @@ class DuckDBTool:
         return result["message"]
 
     async def transform(self) -> Dict[str, Any]:
-        """Transform and clean data using detected schema with aggressive cleaning"""
+        """Transform and clean data using LLM-guided (or heuristic) rules."""
         schema = load_schema()
         raw_table = schema.get("raw_table", "data_raw")
         clean_table = schema.get("table_name", "data_clean")
@@ -127,20 +128,41 @@ class DuckDBTool:
             return {"error": f"Invalid clean table name: {clean_table!r}"}
 
         con = self._get_connection()
-
         quoted_raw = quote_identifier(raw_table)
 
-        # Check if raw table exists
         try:
             con.execute(f"SELECT * FROM {quoted_raw} LIMIT 1")
         except duckdb.Error:
             con.close()
             return {"error": f"Raw table {raw_table} not found. Run ingest first."}
 
-        # Get column info from raw table directly from DuckDB
         columns_info = con.execute(f"DESCRIBE {quoted_raw}").fetchall()
 
-        # ✅ FIX: Build proper data cleaning transformation
+        try:
+            sample_df = con.execute(f"SELECT * FROM {quoted_raw} LIMIT 50").fetchdf()
+            sample_data = sample_df.to_dict("records")
+        except duckdb.Error:
+            sample_data = []
+
+        llm_plan: Dict[str, Any] = {
+            "llm_used": False,
+            "column_rules": [],
+            "global_rules": {"drop_duplicates": True},
+            "notes": [],
+        }
+        try:
+            from agent.tools.llm_agent import LLMAgent
+            llm = LLMAgent()
+            llm_plan = await llm.generate_cleaning_plan(schema_info=schema, sample_data=sample_data)
+        except Exception:
+            pass
+
+        rules_by_column: Dict[str, Dict[str, Any]] = {}
+        for rule in llm_plan.get("column_rules", []):
+            col_name = rule.get("column")
+            if isinstance(col_name, str) and validate_identifier(col_name):
+                rules_by_column[col_name] = rule
+
         select_parts = []
         where_parts = []
         cleaning_applied = []
@@ -150,54 +172,70 @@ class DuckDBTool:
             col_type = col[1]
 
             if not validate_identifier(col_name):
-                # Skip columns with unsafe names
                 continue
 
             quoted_col = quote_identifier(col_name)
-
-            # Get semantic info if available
             col_schema = schema.get("columns", {}).get(col_name, {})
             semantic = col_schema.get("semantic", "generic")
-            
-            # ✅ ACTUAL DATA CLEANING TRANSFORMATIONS
-            
-            # 1. Handle numeric columns - remove nulls, convert to proper type
-            if semantic in ["money", "count", "score", "percentage"] or "INT" in col_type.upper() or "DOUBLE" in col_type.upper() or "FLOAT" in col_type.upper():
-                # Cast to numeric and handle nulls
-                select_parts.append(f"CAST(NULLIF(TRIM(CAST({quoted_col} AS VARCHAR)), '') AS DOUBLE) as {quoted_col}")
-                cleaning_applied.append(f"Cleaned {col_name}: converted to numeric, removed nulls")
-            
-            # 2. Handle text columns - trim whitespace, handle empty strings
-            elif "VARCHAR" in col_type.upper() or semantic in ["category", "name", "location"]:
-                select_parts.append(f"TRIM({quoted_col}) as {quoted_col}")
-                # Add NOT NULL filter for key columns
-                if semantic in ["id", "name"]:
-                    where_parts.append(f"{quoted_col} IS NOT NULL AND TRIM({quoted_col}) != ''")
-                    cleaning_applied.append(f"Cleaned {col_name}: trimmed, removed nulls/empty")
+            rule = rules_by_column.get(col_name, {})
+            ops = set(rule.get("operations", []) if isinstance(rule, dict) else [])
+
+            if not ops:
+                if semantic in ["money", "count", "score", "percentage"] or any(
+                    t in col_type.upper() for t in ["INT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC"]
+                ):
+                    ops.update(["normalize_empty_to_null", "parse_numeric"])
+                elif semantic == "datetime" or "DATE" in col_type.upper() or "TIME" in col_type.upper():
+                    ops.update(["trim", "normalize_empty_to_null", "parse_date"])
                 else:
-                    cleaning_applied.append(f"Cleaned {col_name}: trimmed whitespace")
-            
-            # 3. Handle dates - parse and convert
-            elif semantic == "datetime" or "DATE" in col_type.upper():
-                select_parts.append(f"TRY_CAST({quoted_col} AS DATE) as {quoted_col}")
-                cleaning_applied.append(f"Cleaned {col_name}: converted to date format")
-            
-            # 4. Default - just select as-is
+                    ops.update(["trim", "normalize_empty_to_null"])
+                if semantic in ["id", "name"]:
+                    ops.add("drop_row_if_null")
+
+            expr = quoted_col
+
+            if "parse_numeric" in ops:
+                text_for_num = (
+                    f"NULLIF(REGEXP_REPLACE(TRIM(CAST({quoted_col} AS VARCHAR)), '[^0-9+.,-]', '', 'g'), '')"
+                )
+                expr = f"TRY_CAST(REPLACE({text_for_num}, ',', '') AS DOUBLE)"
+            elif "parse_date" in ops:
+                expr = f"TRY_CAST(NULLIF(TRIM(CAST({quoted_col} AS VARCHAR)), '') AS DATE)"
             else:
-                select_parts.append(quoted_col)
+                text_expr = f"CAST({quoted_col} AS VARCHAR)"
+                if "trim" in ops:
+                    text_expr = f"TRIM({text_expr})"
+                if "normalize_empty_to_null" in ops:
+                    text_expr = f"NULLIF({text_expr}, '')"
+                if "lowercase" in ops:
+                    text_expr = f"LOWER({text_expr})"
+                expr = text_expr
+
+            select_parts.append(f"{expr} as {quoted_col}")
+
+            if "drop_row_if_null" in ops:
+                where_parts.append(f"{expr} IS NOT NULL")
+
+            source = "LLM" if col_name in rules_by_column else "heuristic"
+            ops_label = ", ".join(sorted(ops))
+            cleaning_applied.append(f"{source} cleaned {col_name}: {ops_label}")
+
+        if not select_parts:
+            con.close()
+            return {"error": "No valid columns found for transform."}
 
         where_clause = " AND ".join(where_parts) if where_parts else "1=1"
+        use_distinct = True if llm_plan.get("global_rules", {}).get("drop_duplicates", True) else False
+        distinct_clause = "DISTINCT " if use_distinct else ""
 
-        # Execute transformation with DISTINCT to remove duplicates
         quoted_clean = quote_identifier(clean_table)
         transform_sql = f"""
             CREATE OR REPLACE TABLE {quoted_clean} AS
-            SELECT DISTINCT {', '.join(select_parts)}
+            SELECT {distinct_clause}{', '.join(select_parts)}
             FROM {quoted_raw}
             WHERE {where_clause}
         """
 
-        # Validate before executing
         is_safe, reason = validate_sql(transform_sql)
         if not is_safe:
             con.close()
@@ -209,7 +247,6 @@ class DuckDBTool:
             con.close()
             return {"error": f"Transformation failed: {e}"}
 
-        # Export clean data
         clean_data_path = os.path.join(CLEAN_DATA_DIR, f"{clean_table}.csv")
         os.makedirs(os.path.dirname(clean_data_path), exist_ok=True)
 
@@ -217,8 +254,6 @@ class DuckDBTool:
             df = con.execute(f"SELECT * FROM {quoted_clean}").fetchdf()
             df.to_csv(clean_data_path, index=False)
             count = len(df)
-            
-            # Get original row count to show how many rows were removed
             original_count = con.execute(f"SELECT COUNT(*) FROM {quoted_raw}").fetchone()[0]
             rows_removed = original_count - count
         except duckdb.Error as e:
@@ -227,22 +262,25 @@ class DuckDBTool:
 
         con.close()
 
-        # Update schema
         schema["row_count"] = count
         schema["original_row_count"] = original_count
         schema["rows_removed"] = rows_removed
         schema["cleaning_applied"] = cleaning_applied
+        schema["cleaning_plan"] = llm_plan
         save_schema(schema)
 
         return {
             "status": "success",
-            "message": f"Cleaned {original_count} → {count} rows ({rows_removed} removed). Applied: {len(cleaning_applied)} transformations",
+            "message": f"Cleaned {original_count} -> {count} rows ({rows_removed} removed). Applied: {len(cleaning_applied)} transformations",
             "output_file": clean_data_path,
             "row_count": count,
             "original_count": original_count,
             "rows_removed": rows_removed,
-            "cleaning_operations": cleaning_applied
+            "cleaning_operations": cleaning_applied,
+            "llm_cleaning_used": bool(llm_plan.get("llm_used", False)),
+            "cleaning_plan_notes": llm_plan.get("notes", []),
         }
+
 
     async def query(self, sql: str) -> Dict[str, Any]:
         """Execute a SQL query with safety validation and timeout."""

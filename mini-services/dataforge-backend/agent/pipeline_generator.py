@@ -186,9 +186,7 @@ class PipelineGenerator:
         raw_table = schema.get('raw_table', 'data_raw')
         dataset_type = schema.get('dataset_type', 'generic')
 
-        rel_source = source_file
-        if rel_source.startswith(self.base_path):
-            rel_source = rel_source[len(self.base_path):].lstrip("/").lstrip("\\")
+        source_literal = json.dumps(os.path.normpath(source_file))
 
         pipeline_filename = self._get_pipeline_filename(schema)
 
@@ -209,9 +207,13 @@ class DataPipeline:
     """Auto-generated Data Pipeline for {dataset_type} dataset"""
 
     def __init__(self):
-        self.base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        self.base_path = os.path.normpath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
         self.warehouse_path = os.path.join(self.base_path, "warehouse", "warehouse.duckdb")
-        self.raw_data_path = os.path.join(self.base_path, "{rel_source}")
+        source_file = os.path.normpath({source_literal})
+        if os.path.isabs(source_file):
+            self.raw_data_path = source_file
+        else:
+            self.raw_data_path = os.path.normpath(os.path.join(self.base_path, source_file))
         self.clean_data_path = os.path.join(self.base_path, "data", "clean", "{clean_table}.csv")
         self.report_path = os.path.join(self.base_path, "reports", "{clean_table}_report.csv")
         self.logs = []

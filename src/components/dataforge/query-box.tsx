@@ -38,6 +38,7 @@ interface QueryResult {
 interface QueryBoxProps {
   onQuery: (question: string) => Promise<QueryResult>;
   isLoading?: boolean;
+  activeFileName?: string | null;
 }
 
 const exampleQueries = [
@@ -47,7 +48,7 @@ const exampleQueries = [
   "Average sales per product",
 ];
 
-export function QueryBox({ onQuery, isLoading = false }: QueryBoxProps) {
+export function QueryBox({ onQuery, isLoading = false, activeFileName = null }: QueryBoxProps) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<QueryResult | null>(null);
   const [showSQL, setShowSQL] = useState(false);
@@ -112,6 +113,11 @@ export function QueryBox({ onQuery, isLoading = false }: QueryBoxProps) {
 
           <div className="flex flex-wrap gap-2">
             <span className="text-sm text-muted-foreground">Examples:</span>
+            {activeFileName && (
+              <Badge variant="outline" className="text-xs">
+                Active file: {activeFileName}
+              </Badge>
+            )}
             {exampleQueries.map((q, i) => (
               <Badge
                 key={i}
@@ -190,9 +196,9 @@ export function QueryBox({ onQuery, isLoading = false }: QueryBoxProps) {
             </Collapsible>
 
             {/* Data Table */}
-            <div className="rounded-lg border overflow-hidden">
-              <div className="max-h-96 overflow-auto">
-                <Table>
+            <div className="rounded-lg border">
+              <div className="max-h-96 overflow-y-auto overflow-x-auto scroll-smooth">
+                <Table className="min-w-max">
                   <TableHeader className="sticky top-0 bg-muted">
                     <TableRow>
                       {result.columns.map((col) => (

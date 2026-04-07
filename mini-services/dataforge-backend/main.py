@@ -74,15 +74,22 @@ report_tool = ReportTool()
 class CommandRequest(BaseModel):
     command: str
     user_id: Optional[str] = None
+    active_file: Optional[str] = None
 
 
 class QueryRequest(BaseModel):
     question: str
     user_id: Optional[str] = None
+    active_file: Optional[str] = None
 
 
 class LLMAnalysisRequest(BaseModel):
     use_llm: bool = True
+    active_file: Optional[str] = None
+
+
+class ActiveFileRequest(BaseModel):
+    file_path: str
 
 
 class AirbyteSourceRequest(BaseModel):
@@ -125,6 +132,45 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
+async def _activate_file_context(file_path: str) -> Dict[str, Any]:
+    """Activate a specific file as the current working dataset."""
+    if os.path.isabs(file_path):
+        full_path = os.path.realpath(file_path)
+    else:
+        full_path = os.path.realpath(os.path.join(BASE_PATH, file_path))
+    if not full_path.startswith(os.path.realpath(BASE_PATH) + os.sep):
+        return {"error": "Access denied: path outside project directory"}
+    if not os.path.exists(full_path):
+        return {"error": f"File not found: {file_path}"}
+
+    ext = os.path.splitext(full_path)[1].lower()
+    ingest_path = full_path
+
+    # Convert Excel to CSV before ingestion.
+    if ext in [".xlsx", ".xls", ".xlsm"]:
+        convert_result = xlsx_processor.to_csv(full_path)
+        output_files = convert_result.get("output_files", [])
+        if not output_files:
+            return {"error": "Failed to convert Excel file to CSV"}
+        ingest_path = output_files[0]["path"]
+    elif ext not in [".csv", ".json"]:
+        return {"error": f"Unsupported active file type: {ext}"}
+
+    schema = await schema_detector.detect_schema_from_file(ingest_path, use_llm=True)
+    if "error" in schema:
+        return {"error": schema["error"]}
+
+    ingest_result = await duckdb_tool.ingest_file(ingest_path)
+    if "error" in ingest_result:
+        return {"error": ingest_result["error"]}
+
+    return {
+        "status": "success",
+        "schema": load_schema(),
+        "ingested_path": ingest_path,
+    }
+
+
 # ============ SCHEMA DETECTION ROUTES ============
 
 @app.get("/schema")
@@ -159,6 +205,19 @@ async def get_query_suggestions():
         "suggestions": suggestions,
         "dataset_type": schema.get("dataset_type", "generic"),
         "table_name": schema.get("table_name", "data_clean")
+    }
+
+
+@app.post("/active-file")
+async def set_active_file(request: ActiveFileRequest):
+    """Set a selected file as the active dataset for all operations."""
+    result = await _activate_file_context(request.file_path)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return {
+        "status": "success",
+        "message": f"Active file set to {request.file_path}",
+        "schema": result.get("schema", {}),
     }
 
 
@@ -221,9 +280,9 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.post("/upload-and-process")
 async def upload_and_process(file: UploadFile = File(...)):
-    """Upload a file — saves, detects schema, ingests raw data, and cleans old outputs.
-    When a new file is uploaded, old pipeline/report/clean-data files from previous
-    datasets are removed so the workspace starts fresh for the new dataset.
+    """Upload a file — only saves, detects schema, and ingests raw data.
+    Does NOT auto-transform, auto-generate pipeline, or auto-generate report.
+    The user must issue commands through the agent to perform those actions.
     """
     try:
         # Validate file type
@@ -242,41 +301,6 @@ async def upload_and_process(file: UploadFile = File(...)):
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # ── Clean up OLD output files from previous datasets ──
-        # Remove old pipeline files (but keep the sample ones)
-        cleaned_old = []
-        if os.path.exists(PIPELINES_DIR):
-            for f in os.listdir(PIPELINES_DIR):
-                if f.endswith('.py'):
-                    try:
-                        os.remove(os.path.join(PIPELINES_DIR, f))
-                        cleaned_old.append(f"pipelines/{f}")
-                    except OSError:
-                        pass
-
-        # Remove old report files
-        if os.path.exists(REPORTS_DIR):
-            for f in os.listdir(REPORTS_DIR):
-                if f.endswith(('.csv', '.json', '.txt', '.html')):
-                    try:
-                        os.remove(os.path.join(REPORTS_DIR, f))
-                        cleaned_old.append(f"reports/{f}")
-                    except OSError:
-                        pass
-
-        # Remove old clean data files
-        if os.path.exists(CLEAN_DATA_DIR):
-            for f in os.listdir(CLEAN_DATA_DIR):
-                if f.endswith('.csv'):
-                    try:
-                        os.remove(os.path.join(CLEAN_DATA_DIR, f))
-                        cleaned_old.append(f"data/clean/{f}")
-                    except OSError:
-                        pass
-
-        if cleaned_old:
-            print(f"[Upload] Cleaned {len(cleaned_old)} old output files for fresh start")
-
         # Handle XLSX files
         csv_path = file_path
         if file_ext in ['.xlsx', '.xls', '.xlsm']:
@@ -284,7 +308,8 @@ async def upload_and_process(file: UploadFile = File(...)):
             if convert_result.get("output_files"):
                 csv_path = convert_result["output_files"][0]["path"]
 
-        # Detect schema
+        # Detect schema only
+                # Detect schema (uses LLM if available, falls back to heuristic)
         schema = await schema_detector.detect_schema_from_file(csv_path, use_llm=True)
 
         if "error" in schema:
@@ -296,25 +321,21 @@ async def upload_and_process(file: UploadFile = File(...)):
         if "error" in ingest_result:
             return {"status": "error", "message": ingest_result["error"]}
 
+        # STOP here — no auto-transform, no auto-pipeline, no auto-report
+        # User must use the agent to give commands
+
         return {
             "status": "success",
             "message": f"File uploaded: {file.filename}. Use the agent to clean data, generate reports, or build pipelines.",
             "file_path": file_path,
             "schema": schema,
             "ingest": ingest_result,
-            "cleaned_old_files": cleaned_old,
             "agent_suggestions": [
                 "Clean and transform the data",
                 "Generate a summary report",
                 "Create a full data pipeline",
                 "Analyze the dataset",
                 "Describe the schema",
-            ],
-            "next_steps": [
-                "POST /run-agent with command: 'run pipeline' to execute full pipeline",
-                "POST /run-agent with command: 'transform' to clean data only",
-                "POST /run-agent with command: 'analyze' to analyze with AI",
-                "POST /run-agent with command: 'report' to generate summary report"
             ]
         }
     except Exception as e:
@@ -370,8 +391,14 @@ async def preview_xlsx_sheet(file_path: str, sheet_name: str = None, rows: int =
 # ============ LLM ROUTES ============
 
 @app.post("/llm/analyze")
-async def analyze_dataset():
+async def analyze_dataset(request: Optional[LLMAnalysisRequest] = None):
     """Use LLM to analyze current dataset"""
+    request = request or LLMAnalysisRequest()
+    if request.active_file:
+        active_result = await _activate_file_context(request.active_file)
+        if "error" in active_result:
+            return {"status": "error", "message": active_result["error"]}
+
     schema = schema_detector.load_schema_cache()
 
     if not schema:
@@ -585,6 +612,10 @@ async def run_agent(request: CommandRequest):
     """
     import traceback
     try:
+        if request.active_file:
+            active_result = await _activate_file_context(request.active_file)
+            if "error" in active_result:
+                return {"status": "error", "message": active_result["error"]}
         result = await master_agent.execute(request.command)
         return {
             "status": "success",
@@ -621,6 +652,11 @@ async def execute_query(request: QueryRequest):
     Uses LLM for intelligent SQL generation.
     """
     try:
+        if request.active_file:
+            active_result = await _activate_file_context(request.active_file)
+            if "error" in active_result:
+                raise HTTPException(status_code=400, detail=active_result["error"])
+
         # Get current schema
         schema = schema_detector.load_schema_cache()
 
@@ -676,14 +712,14 @@ async def execute_query(request: QueryRequest):
 
 @app.get("/files")
 async def list_files():
-    """List all generated files - dynamically scans all output directories."""
+    """List all generated files"""
     files = []
 
-    # --- data/raw : uploaded raw files ---
+    # Check for any CSV files in data/raw using BASE_PATH
     raw_dir = os.path.join(BASE_PATH, "data/raw")
     if os.path.exists(raw_dir):
         for f in os.listdir(raw_dir):
-            if f.endswith(('.csv', '.json', '.xlsx', '.xls', '.xlsm')):
+            if f.endswith(('.csv', '.json', '.xlsx', '.xls')):
                 full_path = os.path.join(raw_dir, f)
                 files.append({
                     "name": f,
@@ -694,7 +730,7 @@ async def list_files():
                     "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                 })
 
-    # --- data/clean : cleaned/exported CSV files ---
+    # Check for any CSV files in data/clean
     clean_dir = os.path.join(BASE_PATH, "data/clean")
     if os.path.exists(clean_dir):
         for f in os.listdir(clean_dir):
@@ -709,11 +745,12 @@ async def list_files():
                     "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                 })
 
-    # --- pipelines/ : ALL generated pipeline .py files (dataset-specific) ---
-    if os.path.exists(PIPELINES_DIR):
-        for f in os.listdir(PIPELINES_DIR):
+    # ✅ FIX: Scan ALL files in pipelines directory (not just hardcoded names)
+    pipelines_dir = os.path.join(BASE_PATH, "pipelines")
+    if os.path.exists(pipelines_dir):
+        for f in os.listdir(pipelines_dir):
             if f.endswith('.py'):
-                full_path = os.path.join(PIPELINES_DIR, f)
+                full_path = os.path.join(pipelines_dir, f)
                 files.append({
                     "name": f,
                     "path": f"pipelines/{f}",
@@ -723,38 +760,28 @@ async def list_files():
                     "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                 })
 
-    # --- reports/ : ALL generated report files (dataset-specific) ---
-    if os.path.exists(REPORTS_DIR):
-        for f in os.listdir(REPORTS_DIR):
-            if f.endswith(('.csv', '.json', '.txt', '.html')):
-                full_path = os.path.join(REPORTS_DIR, f)
+    # ✅ FIX: Scan ALL files in reports directory (not just hardcoded names)
+    reports_dir = os.path.join(BASE_PATH, "reports")
+    if os.path.exists(reports_dir):
+        for f in os.listdir(reports_dir):
+            if f.endswith('.csv'):
+                full_path = os.path.join(reports_dir, f)
                 files.append({
                     "name": f,
                     "path": f"reports/{f}",
-                    "type": f.split('.')[-1],
+                    "type": "csv",
                     "category": "report",
                     "size": os.path.getsize(full_path),
                     "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                 })
 
-    # --- warehouse/ : warehouse DB and schema cache ---
+    # Add warehouse files
     warehouse_files = [
-        ("warehouse.duckdb", "warehouse", "duckdb"),
-        ("schema_cache.json", "schema", "json"),
+        ("warehouse/warehouse.duckdb", "warehouse", "duckdb"),
+        ("warehouse/schema_cache.json", "schema", "json"),
     ]
-    for fname, category, ftype in warehouse_files:
-        full_path = os.path.join(WAREHOUSE_DB_PATH if ftype == "duckdb" else os.path.dirname(WAREHOUSE_DB_PATH), fname)
-        if os.path.exists(full_path):
-            files.append({
-                "name": fname,
-                "path": f"warehouse/{fname}",
-                "type": ftype,
-                "category": category,
-                "size": os.path.getsize(full_path),
-                "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-            })
 
-    # --- dbt_project/models/ : dbt model files ---
+    # Add dbt models using DBT_DIR from utils
     dbt_models_dir = os.path.join(DBT_DIR, "models")
     if os.path.exists(dbt_models_dir):
         for root, dirs, filenames in os.walk(dbt_models_dir):
@@ -770,6 +797,18 @@ async def list_files():
                         "size": os.path.getsize(full_path),
                         "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                     })
+
+    for path, category, file_type in warehouse_files:
+        full_path = os.path.join(BASE_PATH, path)
+        if os.path.exists(full_path):
+            files.append({
+                "name": os.path.basename(path),
+                "path": path,
+                "type": file_type,
+                "category": category,
+                "size": os.path.getsize(full_path),
+                "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
+            })
 
     return {"files": files, "count": len(files)}
 
@@ -836,7 +875,7 @@ async def generate_pipeline_endpoint(file_path: str = None):
     generator = PipelineGenerator()
 
     if file_path:
-        result = generator.generate_from_file(file_path)
+        result = await generator.generate_from_file(file_path)
     else:
         schema = schema_detector.load_schema_cache()
         if schema:

@@ -1,9 +1,9 @@
 {
-  "source_file": "R:\\\\New folder (2)\\\\my-project\\data\\raw\\messy_dataset.csv",
-  "table_name": "messy_dataset_clean",
+  "source_file": "R:\\New folder (2)\\my-project\\data\\clean\\messy_dataset_clean.csv",
+  "table_name": "messy_dataset_clean_clean",
   "dataset_type": "hr",
-  "dataset_description": "Hr dataset with 6 rows and 6 columns (1 categorical, 5 text). Key columns: \u2018Name\u2019, \u2018Age\u2019, \u2018Email\u2019, \u2018Salary\u2019, \u2018Join_Date\u2019, \u2018and 1 more\u2019.",
-  "row_count": 6,
+  "dataset_description": "Hr dataset with 4 rows and 6 columns (2 numeric, 1 categorical, 1 date/time, 2 text). Key columns: \u2018Name\u2019, \u2018Age\u2019, \u2018Email\u2019, \u2018Salary\u2019, \u2018Join_Date\u2019, \u2018and 1 more\u2019.",
+  "row_count": 4,
   "column_count": 6,
   "columns": {
     "Name": {
@@ -11,106 +11,111 @@
       "semantic": "person",
       "nullable": true,
       "sample_values": [
-        "Alice",
-        "Bob",
-        "Charlie"
+        "alice",
+        "bob",
+        "alice"
       ],
-      "unique_count": 5,
-      "total_count": 5,
+      "unique_count": 2,
+      "total_count": 3,
       "null_count": 1,
-      "null_pct": 16.7
+      "null_pct": 25.0
     },
     "Age": {
-      "type": "object",
-      "semantic": "generic",
-      "nullable": true,
+      "type": "float64",
+      "semantic": "count",
+      "nullable": false,
       "sample_values": [
-        "25",
-        "30",
-        "22"
+        25.0,
+        30.0,
+        22.0
       ],
-      "unique_count": 4,
-      "total_count": 5,
-      "null_count": 1,
-      "null_pct": 16.7
+      "unique_count": 3,
+      "total_count": 4,
+      "null_count": 0,
+      "null_pct": 0.0
     },
     "Email": {
       "type": "object",
       "semantic": "email",
-      "nullable": true,
+      "nullable": false,
       "sample_values": [
         "alice@example.com",
         "bob[at]mail.com",
         "charlie@mail.com"
       ],
-      "unique_count": 5,
-      "total_count": 5,
-      "null_count": 1,
-      "null_pct": 16.7
+      "unique_count": 4,
+      "total_count": 4,
+      "null_count": 0,
+      "null_pct": 0.0
     },
     "Salary": {
-      "type": "object",
+      "type": "float64",
       "semantic": "money",
-      "nullable": true,
+      "nullable": false,
       "sample_values": [
-        "50000",
-        "60000",
-        "70000"
+        50000.0,
+        60000.0,
+        70000.0
       ],
-      "unique_count": 4,
-      "total_count": 5,
-      "null_count": 1,
-      "null_pct": 16.7
+      "unique_count": 3,
+      "total_count": 4,
+      "null_count": 0,
+      "null_pct": 0.0
     },
     "Join_Date": {
-      "type": "object",
+      "type": "datetime",
       "semantic": "datetime",
       "nullable": true,
       "sample_values": [
         "2022-01-15",
-        "15/02/2023",
-        "March 3 2021"
+        "2022-01-15"
       ],
-      "unique_count": 4,
-      "total_count": 5,
-      "null_count": 1,
-      "null_pct": 16.7
+      "unique_count": 1,
+      "total_count": 2,
+      "null_count": 2,
+      "null_pct": 50.0
     },
     "Department": {
       "type": "object",
       "semantic": "category",
-      "nullable": true,
+      "nullable": false,
       "sample_values": [
         "HR",
         "IT",
-        "Finance"
+        "IT"
       ],
-      "unique_count": 3,
-      "total_count": 5,
-      "null_count": 1,
-      "null_pct": 16.7
+      "unique_count": 2,
+      "total_count": 4,
+      "null_count": 0,
+      "null_pct": 0.0
     }
   },
   "column_summary": {
-    "numeric": [],
+    "numeric": [
+      "Age",
+      "Salary"
+    ],
     "categorical": [
       "Department"
     ],
-    "date": [],
+    "date": [
+      "Join_Date"
+    ],
     "text": [
       "Name",
-      "Age",
-      "Email",
-      "Salary",
-      "Join_Date"
+      "Email"
     ],
     "id": []
   },
   "suggested_queries": [
+    "Show top 10 by Age",
+    "Total Age by Department",
+    "Average Age",
     "Distribution of Department",
+    "Age trend over time",
     "How many records per Department"
   ],
-  "detected_at": "2026-04-07T12:58:24.604414",
+  "detected_at": "2026-04-07T19:31:05.413022",
   "detection_method": "heuristic",
-  "raw_table": "messy_dataset_raw"
+  "raw_table": "messy_dataset_clean_raw"
 }

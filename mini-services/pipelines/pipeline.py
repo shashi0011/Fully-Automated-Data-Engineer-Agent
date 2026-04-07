@@ -15,11 +15,15 @@ class DataPipeline:
     """Auto-generated Data Pipeline"""
     
     def __init__(self):
-        self.base_path = "R:\New folder (2)\my-project\mini-services"
-        self.warehouse_path = os.path.join(self.base_path, "warehouse/warehouse.duckdb")
-        self.raw_data_path = os.path.join(self.base_path, "R:\New folder (2)\my-project\mini-services\data\raw\student_performance_data.csv")
-        self.clean_data_path = os.path.join(self.base_path, "data/clean/student_performance_data_clean.csv")
-        self.report_path = os.path.join(self.base_path, "reports/report.csv")
+        self.base_path = os.path.normpath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+        self.warehouse_path = os.path.join(self.base_path, "warehouse", "warehouse.duckdb")
+        source_file = os.path.normpath("data/raw/student_performance_data.csv")
+        if os.path.isabs(source_file):
+            self.raw_data_path = source_file
+        else:
+            self.raw_data_path = os.path.normpath(os.path.join(self.base_path, source_file))
+        self.clean_data_path = os.path.join(self.base_path, "data", "clean", "student_performance_data_clean.csv")
+        self.report_path = os.path.join(self.base_path, "reports", "student_performance_data_clean_report.csv")
         self.logs = []
     
     def log(self, message):

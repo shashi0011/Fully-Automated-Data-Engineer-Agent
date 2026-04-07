@@ -10,7 +10,8 @@ from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime
 
 # === PATHS (parameterized, not hardcoded) ===
-BASE_PATH = os.getenv("DATAFORGE_BASE_PATH", os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+# ✅ FIX: BASE_PATH should be project root (../../ from agent dir), not mini-services/
+BASE_PATH = os.getenv("DATAFORGE_BASE_PATH", os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
 DATA_DIR = os.path.join(BASE_PATH, "data")
 RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
 CLEAN_DATA_DIR = os.path.join(DATA_DIR, "clean")

@@ -1,146 +1,116 @@
 {
-  "source_file": "R:\\\\New folder (2)\\\\my-project\\data/raw\\cleaned_dataset.csv",
-  "table_name": "cleaned_dataset_clean",
-  "dataset_type": "generic",
-  "dataset_description": "A dataset containing user recordings with associated metadata and URLs for audio and transcription files.",
-  "row_count": 104,
-  "column_count": 7,
+  "source_file": "R:\\\\New folder (2)\\\\my-project\\data\\raw\\messy_dataset.csv",
+  "table_name": "messy_dataset_clean",
+  "dataset_type": "hr",
+  "dataset_description": "Hr dataset with 6 rows and 6 columns (1 categorical, 5 text). Key columns: \u2018Name\u2019, \u2018Age\u2019, \u2018Email\u2019, \u2018Salary\u2019, \u2018Join_Date\u2019, \u2018and 1 more\u2019.",
+  "row_count": 6,
+  "column_count": 6,
   "columns": {
-    "user_id": {
-      "type": "int64",
-      "semantic": "id",
-      "nullable": false,
+    "Name": {
+      "type": "object",
+      "semantic": "person",
+      "nullable": true,
       "sample_values": [
-        245746,
-        291038,
-        246004
+        "Alice",
+        "Bob",
+        "Charlie"
       ],
-      "unique_count": 102,
-      "total_count": 104,
-      "null_count": 0,
-      "null_pct": 0.0,
-      "business_meaning": "Unique identifier for each user in the dataset."
+      "unique_count": 5,
+      "total_count": 5,
+      "null_count": 1,
+      "null_pct": 16.7
     },
-    "recording_id": {
-      "type": "int64",
-      "semantic": "id",
-      "nullable": false,
+    "Age": {
+      "type": "object",
+      "semantic": "generic",
+      "nullable": true,
       "sample_values": [
-        825780,
-        825727,
-        988596
+        "25",
+        "30",
+        "22"
       ],
-      "unique_count": 104,
-      "total_count": 104,
-      "null_count": 0,
-      "null_pct": 0.0,
-      "business_meaning": "Unique identifier for each recording made by the user."
+      "unique_count": 4,
+      "total_count": 5,
+      "null_count": 1,
+      "null_pct": 16.7
     },
-    "language": {
+    "Email": {
+      "type": "object",
+      "semantic": "email",
+      "nullable": true,
+      "sample_values": [
+        "alice@example.com",
+        "bob[at]mail.com",
+        "charlie@mail.com"
+      ],
+      "unique_count": 5,
+      "total_count": 5,
+      "null_count": 1,
+      "null_pct": 16.7
+    },
+    "Salary": {
+      "type": "object",
+      "semantic": "money",
+      "nullable": true,
+      "sample_values": [
+        "50000",
+        "60000",
+        "70000"
+      ],
+      "unique_count": 4,
+      "total_count": 5,
+      "null_count": 1,
+      "null_pct": 16.7
+    },
+    "Join_Date": {
+      "type": "object",
+      "semantic": "datetime",
+      "nullable": true,
+      "sample_values": [
+        "2022-01-15",
+        "15/02/2023",
+        "March 3 2021"
+      ],
+      "unique_count": 4,
+      "total_count": 5,
+      "null_count": 1,
+      "null_pct": 16.7
+    },
+    "Department": {
       "type": "object",
       "semantic": "category",
-      "nullable": false,
+      "nullable": true,
       "sample_values": [
-        "hi",
-        "hi",
-        "hi"
+        "HR",
+        "IT",
+        "Finance"
       ],
-      "unique_count": 1,
-      "total_count": 104,
-      "null_count": 0,
-      "null_pct": 0.0,
-      "business_meaning": "Language in which the recording is made."
-    },
-    "duration": {
-      "type": "int64",
-      "semantic": "percentage",
-      "nullable": false,
-      "sample_values": [
-        443,
-        443,
-        475
-      ],
-      "unique_count": 48,
-      "total_count": 104,
-      "null_count": 0,
-      "null_pct": 0.0,
-      "business_meaning": "Duration of the recording, represented as a percentage of a standard length."
-    },
-    "new_rec_url": {
-      "type": "object",
-      "semantic": "url",
-      "nullable": false,
-      "sample_values": [
-        "https://storage.googleapis.com/upload_goai/967179/825780_audio.wav",
-        "https://storage.googleapis.com/upload_goai/967179/825727_audio.wav",
-        "https://storage.googleapis.com/upload_goai/1147542/988596_audio.wav"
-      ],
-      "unique_count": 104,
-      "total_count": 104,
-      "null_count": 0,
-      "null_pct": 0.0,
-      "business_meaning": "URL link to access the audio recording."
-    },
-    "new_transcription_url": {
-      "type": "object",
-      "semantic": "url",
-      "nullable": false,
-      "sample_values": [
-        "https://storage.googleapis.com/upload_goai/967179/825780_transcription.json",
-        "https://storage.googleapis.com/upload_goai/967179/825727_transcription.json",
-        "https://storage.googleapis.com/upload_goai/1147542/988596_transcription.json"
-      ],
-      "unique_count": 104,
-      "total_count": 104,
-      "null_count": 0,
-      "null_pct": 0.0,
-      "business_meaning": "URL link to access the transcription of the audio recording."
-    },
-    "new_metadata_url": {
-      "type": "object",
-      "semantic": "url",
-      "nullable": false,
-      "sample_values": [
-        "https://storage.googleapis.com/upload_goai/967179/825780_metadata.json",
-        "https://storage.googleapis.com/upload_goai/967179/825727_metadata.json",
-        "https://storage.googleapis.com/upload_goai/1147542/988596_metadata.json"
-      ],
-      "unique_count": 104,
-      "total_count": 104,
-      "null_count": 0,
-      "null_pct": 0.0,
-      "business_meaning": "URL link to access the metadata associated with the audio recording."
+      "unique_count": 3,
+      "total_count": 5,
+      "null_count": 1,
+      "null_pct": 16.7
     }
   },
   "column_summary": {
-    "numeric": [
-      "duration"
-    ],
+    "numeric": [],
     "categorical": [
-      "language"
+      "Department"
     ],
     "date": [],
     "text": [
-      "new_rec_url",
-      "new_transcription_url",
-      "new_metadata_url"
+      "Name",
+      "Age",
+      "Email",
+      "Salary",
+      "Join_Date"
     ],
-    "id": [
-      "user_id",
-      "recording_id"
-    ]
+    "id": []
   },
   "suggested_queries": [
-    "Average duration",
-    "Show top 10 by duration",
-    "Total duration by language",
-    "What are the most common languages in the recordings?",
-    "What is the distribution of recording durations?",
-    "How many records per language",
-    "How does the duration of recordings vary by user?",
-    "Distribution of language"
+    "Distribution of Department",
+    "How many records per Department"
   ],
-  "detected_at": "2026-04-06T14:00:13.345671",
-  "detection_method": "llm_enhanced",
-  "llm_confidence": 0.95
+  "detected_at": "2026-04-07T12:58:24.604414",
+  "detection_method": "heuristic",
+  "raw_table": "messy_dataset_raw"
 }

@@ -60,8 +60,8 @@ class ReportTool:
         report_path = self._get_report_path(schema)
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
 
+        # ✅ FIX: DuckDB doesn't support 'timeout' parameter - removed
         con = duckdb.connect(WAREHOUSE_DB_PATH)
-        con.execute(f"SET timeout={QUERY_TIMEOUT * 1000}")
 
         quoted_table = quote_identifier(table_name)
 

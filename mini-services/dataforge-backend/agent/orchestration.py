@@ -458,10 +458,44 @@ async def run_pipeline(state: AgentState) -> dict:
             pipeline_code = generator.generate(operations, schema)
             pipeline_filename = generator._get_pipeline_filename(schema)
             pipeline_path = generator._get_pipeline_path(schema)
+            
             # Verify file was actually written
             if os.path.exists(pipeline_path):
                 files.append(f"pipelines/{pipeline_filename}")
                 logs.append(f"[Pipeline] Written to pipelines/{pipeline_filename}")
+                
+                # ✅ FIX: Actually execute the generated pipeline
+                logs.append(f"[Pipeline] Executing {pipeline_filename}...")
+                import subprocess
+                import sys
+                try:
+                    # Execute pipeline with proper Python interpreter
+                    result = subprocess.run(
+                        [sys.executable, pipeline_path],
+                        capture_output=True,
+                        text=True,
+                        timeout=120,  # 2 minute timeout
+                        cwd=BASE_PATH
+                    )
+                    
+                    if result.returncode == 0:
+                        logs.append(f"[Pipeline] ✓ Execution completed successfully")
+                        # Pipeline execution logs
+                        if result.stdout:
+                            for line in result.stdout.strip().split('\n')[:10]:  # First 10 lines
+                                if line.strip():
+                                    logs.append(f"  {line.strip()}")
+                    else:
+                        logs.append(f"[Pipeline] ✗ Execution failed with code {result.returncode}")
+                        if result.stderr:
+                            error_lines = result.stderr.strip().split('\n')[:5]
+                            for line in error_lines:
+                                if line.strip():
+                                    logs.append(f"  ERROR: {line.strip()}")
+                except subprocess.TimeoutExpired:
+                    logs.append(f"[Pipeline] ⚠ Execution timeout (>120s) - pipeline may still be running")
+                except Exception as exec_error:
+                    logs.append(f"[Pipeline] ✗ Execution error: {exec_error}")
             else:
                 logs.append(f"[Pipeline] WARNING: Pipeline file not written to disk")
         except Exception as e:

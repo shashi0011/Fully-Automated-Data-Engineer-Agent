@@ -34,15 +34,22 @@ interface FileCardProps {
 const fileTypeIcons: Record<string, typeof FileCode> = {
   py: FileCode,
   csv: FileSpreadsheet,
+  json: FileSpreadsheet,
+  xlsx: FileSpreadsheet,
+  xls: FileSpreadsheet,
   duckdb: Database,
   sql: FileCode,
+  yml: FileCode,
 };
 
 const categoryColors: Record<string, string> = {
   pipeline: "bg-blue-500/10 text-blue-500",
-  data: "bg-green-500/10 text-green-500",
+  raw_data: "bg-orange-500/10 text-orange-500",
+  clean_data: "bg-green-500/10 text-green-500",
   report: "bg-purple-500/10 text-purple-500",
-  warehouse: "bg-orange-500/10 text-orange-500",
+  warehouse: "bg-gray-500/10 text-gray-500",
+  schema: "bg-cyan-500/10 text-cyan-500",
+  dbt_model: "bg-amber-500/10 text-amber-500",
 };
 
 const statusIcons: Record<string, typeof CheckCircle2> = {

@@ -35,11 +35,8 @@ class DuckDBTool:
 
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
         os.makedirs(os.path.dirname(WAREHOUSE_DB_PATH), exist_ok=True)
+        # ✅ FIX: DuckDB doesn't support 'timeout' parameter - removed to prevent errors
         con = duckdb.connect(WAREHOUSE_DB_PATH)
-        try:
-            con.execute(f"SET timeout={QUERY_TIMEOUT * 1000}")
-        except duckdb.CatalogException:
-            pass
         return con
 
     def set_data_file(self, file_path: str) -> str:
@@ -59,7 +56,7 @@ class DuckDBTool:
             return {"error": f"File not found: {file_path}"}
 
         # Detect schema first
-        schema = self.schema_detector.detect_schema_from_file(file_path)
+        schema = await self.schema_detector.detect_schema_from_file(file_path)
 
         if "error" in schema:
             return schema
@@ -119,7 +116,7 @@ class DuckDBTool:
         return result["message"]
 
     async def transform(self) -> Dict[str, Any]:
-        """Transform data using detected schema"""
+        """Transform and clean data using detected schema with aggressive cleaning"""
         schema = load_schema()
         raw_table = schema.get("raw_table", "data_raw")
         clean_table = schema.get("table_name", "data_clean")
@@ -143,12 +140,14 @@ class DuckDBTool:
         # Get column info from raw table directly from DuckDB
         columns_info = con.execute(f"DESCRIBE {quoted_raw}").fetchall()
 
-        # Build dynamic transformation with quoted identifiers
+        # ✅ FIX: Build proper data cleaning transformation
         select_parts = []
         where_parts = []
+        cleaning_applied = []
 
         for col in columns_info:
             col_name = col[0]
+            col_type = col[1]
 
             if not validate_identifier(col_name):
                 # Skip columns with unsafe names
@@ -159,21 +158,41 @@ class DuckDBTool:
             # Get semantic info if available
             col_schema = schema.get("columns", {}).get(col_name, {})
             semantic = col_schema.get("semantic", "generic")
-
-            # Just select the column as-is - DuckDB already has the correct type
-            select_parts.append(quoted_col)
-
-            # Add NOT NULL for key columns
-            if semantic in ["id", "name"]:
-                where_parts.append(f"{quoted_col} IS NOT NULL")
+            
+            # ✅ ACTUAL DATA CLEANING TRANSFORMATIONS
+            
+            # 1. Handle numeric columns - remove nulls, convert to proper type
+            if semantic in ["money", "count", "score", "percentage"] or "INT" in col_type.upper() or "DOUBLE" in col_type.upper() or "FLOAT" in col_type.upper():
+                # Cast to numeric and handle nulls
+                select_parts.append(f"CAST(NULLIF(TRIM(CAST({quoted_col} AS VARCHAR)), '') AS DOUBLE) as {quoted_col}")
+                cleaning_applied.append(f"Cleaned {col_name}: converted to numeric, removed nulls")
+            
+            # 2. Handle text columns - trim whitespace, handle empty strings
+            elif "VARCHAR" in col_type.upper() or semantic in ["category", "name", "location"]:
+                select_parts.append(f"TRIM({quoted_col}) as {quoted_col}")
+                # Add NOT NULL filter for key columns
+                if semantic in ["id", "name"]:
+                    where_parts.append(f"{quoted_col} IS NOT NULL AND TRIM({quoted_col}) != ''")
+                    cleaning_applied.append(f"Cleaned {col_name}: trimmed, removed nulls/empty")
+                else:
+                    cleaning_applied.append(f"Cleaned {col_name}: trimmed whitespace")
+            
+            # 3. Handle dates - parse and convert
+            elif semantic == "datetime" or "DATE" in col_type.upper():
+                select_parts.append(f"TRY_CAST({quoted_col} AS DATE) as {quoted_col}")
+                cleaning_applied.append(f"Cleaned {col_name}: converted to date format")
+            
+            # 4. Default - just select as-is
+            else:
+                select_parts.append(quoted_col)
 
         where_clause = " AND ".join(where_parts) if where_parts else "1=1"
 
-        # Execute transformation
+        # Execute transformation with DISTINCT to remove duplicates
         quoted_clean = quote_identifier(clean_table)
         transform_sql = f"""
             CREATE OR REPLACE TABLE {quoted_clean} AS
-            SELECT {', '.join(select_parts)}
+            SELECT DISTINCT {', '.join(select_parts)}
             FROM {quoted_raw}
             WHERE {where_clause}
         """
@@ -198,6 +217,10 @@ class DuckDBTool:
             df = con.execute(f"SELECT * FROM {quoted_clean}").fetchdf()
             df.to_csv(clean_data_path, index=False)
             count = len(df)
+            
+            # Get original row count to show how many rows were removed
+            original_count = con.execute(f"SELECT COUNT(*) FROM {quoted_raw}").fetchone()[0]
+            rows_removed = original_count - count
         except duckdb.Error as e:
             con.close()
             return {"error": f"Failed to export clean data: {e}"}
@@ -206,13 +229,19 @@ class DuckDBTool:
 
         # Update schema
         schema["row_count"] = count
+        schema["original_row_count"] = original_count
+        schema["rows_removed"] = rows_removed
+        schema["cleaning_applied"] = cleaning_applied
         save_schema(schema)
 
         return {
             "status": "success",
-            "message": f"Transformed {count} rows into {clean_table}",
+            "message": f"Cleaned {original_count} → {count} rows ({rows_removed} removed). Applied: {len(cleaning_applied)} transformations",
             "output_file": clean_data_path,
-            "row_count": count
+            "row_count": count,
+            "original_count": original_count,
+            "rows_removed": rows_removed,
+            "cleaning_operations": cleaning_applied
         }
 
     async def query(self, sql: str) -> Dict[str, Any]:

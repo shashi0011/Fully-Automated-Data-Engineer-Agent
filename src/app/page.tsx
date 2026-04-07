@@ -1546,7 +1546,9 @@ export default function DataForgeApp() {
   // ✅ FIX: Auto-select first uploaded raw file
   const fetchFiles = async () => {
     try {
-      const response = await fetch("/api/files");
+      // ✅ FIX: Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/files?_=${timestamp}`);
       const data = await response.json();
       const fetchedFiles = data.files || [];
       setFiles(fetchedFiles);
@@ -1595,12 +1597,35 @@ export default function DataForgeApp() {
   };
 
   const handleExecuteCommand = async (command: string) => {
-    setIsLoading(true); setPipelineStatus("running");
+    setIsLoading(true); 
+    setPipelineStatus("running");
+    
     try {
-      const response = await fetch("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command }) });
-      const result = await response.json(); setExecutionResult(result); setPipelineStatus(result.status === "success" ? "success" : "error");
-      setTimeout(() => { fetchFiles(); fetchStats(); fetchChartData(); fetchSchema(); }, 1000);
-    } catch (error) { console.error("Execution error:", error); setPipelineStatus("error"); } finally { setIsLoading(false); }
+      const response = await fetch("/api/agent", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ command }) 
+      });
+      
+      const result = await response.json(); 
+      setExecutionResult(result); 
+      setPipelineStatus(result.status === "success" ? "success" : "error");
+      
+      // ✅ FIX: Increased timeout and sequential refresh for successful executions
+      if (result.status === "success") {
+        setTimeout(async () => { 
+          await fetchFiles(); 
+          await fetchStats(); 
+          await fetchChartData(); 
+          await fetchSchema(); 
+        }, 2000); // Increased to 2 seconds to allow file system writes
+      }
+    } catch (error) { 
+      console.error("Execution error:", error); 
+      setPipelineStatus("error"); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const handleQuery = async (question: string): Promise<QueryResult> => {

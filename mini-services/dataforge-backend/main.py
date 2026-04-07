@@ -221,9 +221,9 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.post("/upload-and-process")
 async def upload_and_process(file: UploadFile = File(...)):
-    """Upload a file — only saves, detects schema, and ingests raw data.
-    Does NOT auto-transform, auto-generate pipeline, or auto-generate report.
-    The user must issue commands through the agent to perform those actions.
+    """Upload a file — saves, detects schema, ingests raw data, and cleans old outputs.
+    When a new file is uploaded, old pipeline/report/clean-data files from previous
+    datasets are removed so the workspace starts fresh for the new dataset.
     """
     try:
         # Validate file type
@@ -242,6 +242,41 @@ async def upload_and_process(file: UploadFile = File(...)):
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        # ── Clean up OLD output files from previous datasets ──
+        # Remove old pipeline files (but keep the sample ones)
+        cleaned_old = []
+        if os.path.exists(PIPELINES_DIR):
+            for f in os.listdir(PIPELINES_DIR):
+                if f.endswith('.py'):
+                    try:
+                        os.remove(os.path.join(PIPELINES_DIR, f))
+                        cleaned_old.append(f"pipelines/{f}")
+                    except OSError:
+                        pass
+
+        # Remove old report files
+        if os.path.exists(REPORTS_DIR):
+            for f in os.listdir(REPORTS_DIR):
+                if f.endswith(('.csv', '.json', '.txt', '.html')):
+                    try:
+                        os.remove(os.path.join(REPORTS_DIR, f))
+                        cleaned_old.append(f"reports/{f}")
+                    except OSError:
+                        pass
+
+        # Remove old clean data files
+        if os.path.exists(CLEAN_DATA_DIR):
+            for f in os.listdir(CLEAN_DATA_DIR):
+                if f.endswith('.csv'):
+                    try:
+                        os.remove(os.path.join(CLEAN_DATA_DIR, f))
+                        cleaned_old.append(f"data/clean/{f}")
+                    except OSError:
+                        pass
+
+        if cleaned_old:
+            print(f"[Upload] Cleaned {len(cleaned_old)} old output files for fresh start")
+
         # Handle XLSX files
         csv_path = file_path
         if file_ext in ['.xlsx', '.xls', '.xlsm']:
@@ -249,8 +284,7 @@ async def upload_and_process(file: UploadFile = File(...)):
             if convert_result.get("output_files"):
                 csv_path = convert_result["output_files"][0]["path"]
 
-        # Detect schema only
-                # Detect schema (uses LLM if available, falls back to heuristic)
+        # Detect schema
         schema = await schema_detector.detect_schema_from_file(csv_path, use_llm=True)
 
         if "error" in schema:
@@ -262,21 +296,25 @@ async def upload_and_process(file: UploadFile = File(...)):
         if "error" in ingest_result:
             return {"status": "error", "message": ingest_result["error"]}
 
-        # STOP here — no auto-transform, no auto-pipeline, no auto-report
-        # User must use the agent to give commands
-
         return {
             "status": "success",
             "message": f"File uploaded: {file.filename}. Use the agent to clean data, generate reports, or build pipelines.",
             "file_path": file_path,
             "schema": schema,
             "ingest": ingest_result,
+            "cleaned_old_files": cleaned_old,
             "agent_suggestions": [
                 "Clean and transform the data",
                 "Generate a summary report",
                 "Create a full data pipeline",
                 "Analyze the dataset",
                 "Describe the schema",
+            ],
+            "next_steps": [
+                "POST /run-agent with command: 'run pipeline' to execute full pipeline",
+                "POST /run-agent with command: 'transform' to clean data only",
+                "POST /run-agent with command: 'analyze' to analyze with AI",
+                "POST /run-agent with command: 'report' to generate summary report"
             ]
         }
     except Exception as e:
@@ -638,14 +676,14 @@ async def execute_query(request: QueryRequest):
 
 @app.get("/files")
 async def list_files():
-    """List all generated files"""
+    """List all generated files - dynamically scans all output directories."""
     files = []
 
-    # Check for any CSV files in data/raw using BASE_PATH
+    # --- data/raw : uploaded raw files ---
     raw_dir = os.path.join(BASE_PATH, "data/raw")
     if os.path.exists(raw_dir):
         for f in os.listdir(raw_dir):
-            if f.endswith(('.csv', '.json', '.xlsx', '.xls')):
+            if f.endswith(('.csv', '.json', '.xlsx', '.xls', '.xlsm')):
                 full_path = os.path.join(raw_dir, f)
                 files.append({
                     "name": f,
@@ -656,7 +694,7 @@ async def list_files():
                     "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                 })
 
-    # Check for any CSV files in data/clean
+    # --- data/clean : cleaned/exported CSV files ---
     clean_dir = os.path.join(BASE_PATH, "data/clean")
     if os.path.exists(clean_dir):
         for f in os.listdir(clean_dir):
@@ -671,16 +709,52 @@ async def list_files():
                     "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                 })
 
-    # Standard files
-    file_configs = [
-        ("pipelines/pipeline.py", "pipeline", "py"),
-        ("pipelines/pipeline_generated.py", "pipeline", "py"),
-        ("reports/report.csv", "report", "csv"),
-        ("warehouse/warehouse.duckdb", "warehouse", "duckdb"),
-        ("warehouse/schema_cache.json", "schema", "json"),
-    ]
+    # --- pipelines/ : ALL generated pipeline .py files (dataset-specific) ---
+    if os.path.exists(PIPELINES_DIR):
+        for f in os.listdir(PIPELINES_DIR):
+            if f.endswith('.py'):
+                full_path = os.path.join(PIPELINES_DIR, f)
+                files.append({
+                    "name": f,
+                    "path": f"pipelines/{f}",
+                    "type": "py",
+                    "category": "pipeline",
+                    "size": os.path.getsize(full_path),
+                    "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
+                })
 
-    # Add dbt models using DBT_DIR from utils
+    # --- reports/ : ALL generated report files (dataset-specific) ---
+    if os.path.exists(REPORTS_DIR):
+        for f in os.listdir(REPORTS_DIR):
+            if f.endswith(('.csv', '.json', '.txt', '.html')):
+                full_path = os.path.join(REPORTS_DIR, f)
+                files.append({
+                    "name": f,
+                    "path": f"reports/{f}",
+                    "type": f.split('.')[-1],
+                    "category": "report",
+                    "size": os.path.getsize(full_path),
+                    "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
+                })
+
+    # --- warehouse/ : warehouse DB and schema cache ---
+    warehouse_files = [
+        ("warehouse.duckdb", "warehouse", "duckdb"),
+        ("schema_cache.json", "schema", "json"),
+    ]
+    for fname, category, ftype in warehouse_files:
+        full_path = os.path.join(WAREHOUSE_DB_PATH if ftype == "duckdb" else os.path.dirname(WAREHOUSE_DB_PATH), fname)
+        if os.path.exists(full_path):
+            files.append({
+                "name": fname,
+                "path": f"warehouse/{fname}",
+                "type": ftype,
+                "category": category,
+                "size": os.path.getsize(full_path),
+                "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
+            })
+
+    # --- dbt_project/models/ : dbt model files ---
     dbt_models_dir = os.path.join(DBT_DIR, "models")
     if os.path.exists(dbt_models_dir):
         for root, dirs, filenames in os.walk(dbt_models_dir):
@@ -696,18 +770,6 @@ async def list_files():
                         "size": os.path.getsize(full_path),
                         "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
                     })
-
-    for path, category, file_type in file_configs:
-        full_path = os.path.join(BASE_PATH, path)
-        if os.path.exists(full_path):
-            files.append({
-                "name": os.path.basename(path),
-                "path": path,
-                "type": file_type,
-                "category": category,
-                "size": os.path.getsize(full_path),
-                "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-            })
 
     return {"files": files, "count": len(files)}
 

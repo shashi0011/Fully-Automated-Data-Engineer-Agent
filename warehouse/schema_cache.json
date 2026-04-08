@@ -1,181 +1,209 @@
 {
-  "source_file": "R:\\New folder (2)\\my-project\\data\\raw\\dirty_50_rows.csv",
-  "table_name": "dirty_50_rows_clean",
-  "dataset_type": "sales",
-  "dataset_description": "Sales dataset with 50 rows and 10 columns (1 numeric, 4 categorical, 4 text). Key columns: \u2018order_id\u2019, \u2018name\u2019, \u2018age\u2019, \u2018gender\u2019, \u2018product\u2019, \u2018and 5 more\u2019.",
-  "row_count": 50,
-  "column_count": 10,
+  "source_file": "R:\\New folder (2)\\my-project\\data\\raw\\finance_stocks.csv",
+  "table_name": "finance_stocks_clean",
+  "dataset_type": "finance",
+  "dataset_description": "Finance dataset with 30 rows and 12 columns (8 numeric, 1 categorical, 3 text). Key columns: \u2018ticker\u2019, \u2018company_name\u2019, \u2018sector\u2019, \u2018exchange\u2019, \u2018price\u2019, \u2018and 7 more\u2019.",
+  "row_count": 30,
+  "column_count": 12,
   "columns": {
-    "order_id": {
-      "type": "int64",
-      "semantic": "id",
+    "ticker": {
+      "type": "object",
+      "semantic": "generic",
       "nullable": false,
       "sample_values": [
-        2000,
-        2001,
-        2002
+        "AAPL",
+        "MSFT",
+        "GOOGL"
       ],
-      "unique_count": 50,
-      "total_count": 50,
+      "unique_count": 30,
+      "total_count": 30,
       "null_count": 0,
       "null_pct": 0.0
     },
-    "name": {
+    "company_name": {
       "type": "object",
       "semantic": "person",
-      "nullable": true,
+      "nullable": false,
       "sample_values": [
-        "Bob",
-        "Eve",
-        "Charlie"
+        "Apple Inc.",
+        "Microsoft Corporation",
+        "Alphabet Inc."
       ],
-      "unique_count": 5,
-      "total_count": 45,
-      "null_count": 5,
-      "null_pct": 10.0
+      "unique_count": 30,
+      "total_count": 30,
+      "null_count": 0,
+      "null_pct": 0.0
     },
-    "age": {
+    "sector": {
       "type": "object",
-      "semantic": "category",
-      "nullable": true,
+      "semantic": "generic",
+      "nullable": false,
       "sample_values": [
-        "23",
-        "twenty",
-        "42"
+        "Technology",
+        "Technology",
+        "Technology"
       ],
-      "unique_count": 4,
-      "total_count": 33,
-      "null_count": 17,
-      "null_pct": 34.0
+      "unique_count": 7,
+      "total_count": 30,
+      "null_count": 0,
+      "null_pct": 0.0
     },
-    "gender": {
-      "type": "object",
-      "semantic": "category",
-      "nullable": true,
-      "sample_values": [
-        "F",
-        "F",
-        "M"
-      ],
-      "unique_count": 4,
-      "total_count": 42,
-      "null_count": 8,
-      "null_pct": 16.0
-    },
-    "product": {
+    "exchange": {
       "type": "object",
       "semantic": "category",
       "nullable": false,
       "sample_values": [
-        "Camera",
-        "Laptop",
-        "Tablet"
+        "NASDAQ",
+        "NASDAQ",
+        "NASDAQ"
       ],
-      "unique_count": 4,
-      "total_count": 50,
+      "unique_count": 2,
+      "total_count": 30,
       "null_count": 0,
       "null_pct": 0.0
     },
     "price": {
-      "type": "object",
+      "type": "float64",
       "semantic": "money",
       "nullable": false,
       "sample_values": [
-        "1000",
-        "1000",
-        "25000"
+        185.92,
+        378.91,
+        141.8
       ],
-      "unique_count": 4,
-      "total_count": 50,
+      "unique_count": 30,
+      "total_count": 30,
       "null_count": 0,
       "null_pct": 0.0
     },
-    "quantity": {
+    "volume": {
+      "type": "int64",
+      "semantic": "count",
+      "nullable": false,
+      "sample_values": [
+        58200000,
+        22400000,
+        18500000
+      ],
+      "unique_count": 27,
+      "total_count": 30,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "market_cap": {
+      "type": "int64",
+      "semantic": "count",
+      "nullable": false,
+      "sample_values": [
+        2890000000000,
+        2750000000000,
+        1780000000000
+      ],
+      "unique_count": 30,
+      "total_count": 30,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "pe_ratio": {
+      "type": "float64",
+      "semantic": "percentage",
+      "nullable": false,
+      "sample_values": [
+        29.5,
+        35.2,
+        24.8
+      ],
+      "unique_count": 30,
+      "total_count": 30,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "dividend_yield": {
+      "type": "float64",
+      "semantic": "id",
+      "nullable": false,
+      "sample_values": [
+        0.52,
+        0.78,
+        0.0
+      ],
+      "unique_count": 19,
+      "total_count": 30,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "change_percent": {
+      "type": "float64",
+      "semantic": "percentage",
+      "nullable": false,
+      "sample_values": [
+        1.25,
+        0.89,
+        1.52
+      ],
+      "unique_count": 24,
+      "total_count": 30,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "high_52w": {
       "type": "float64",
       "semantic": "count",
-      "nullable": true,
-      "sample_values": [
-        1.0,
-        2.0,
-        1.0
-      ],
-      "unique_count": 2,
-      "total_count": 20,
-      "null_count": 30,
-      "null_pct": 60.0
-    },
-    "date": {
-      "type": "object",
-      "semantic": "datetime",
       "nullable": false,
       "sample_values": [
-        "2024/01/14",
-        "24/01/2024",
-        "30/01/2024"
+        199.62,
+        384.3,
+        153.78
       ],
-      "unique_count": 38,
-      "total_count": 50,
+      "unique_count": 30,
+      "total_count": 30,
       "null_count": 0,
       "null_pct": 0.0
     },
-    "city": {
-      "type": "object",
-      "semantic": "location",
-      "nullable": true,
-      "sample_values": [
-        "Delhi",
-        "Delhi",
-        "Mumbai"
-      ],
-      "unique_count": 3,
-      "total_count": 38,
-      "null_count": 12,
-      "null_pct": 24.0
-    },
-    "payment": {
-      "type": "object",
-      "semantic": "category",
+    "low_52w": {
+      "type": "float64",
+      "semantic": "count",
       "nullable": false,
       "sample_values": [
-        "UPI",
-        "UPI",
-        "Cash"
+        164.08,
+        309.45,
+        102.21
       ],
-      "unique_count": 3,
-      "total_count": 50,
+      "unique_count": 30,
+      "total_count": 30,
       "null_count": 0,
       "null_pct": 0.0
     }
   },
   "column_summary": {
     "numeric": [
-      "quantity"
+      "price",
+      "volume",
+      "market_cap",
+      "pe_ratio",
+      "dividend_yield",
+      "change_percent",
+      "high_52w",
+      "low_52w"
     ],
     "categorical": [
-      "age",
-      "gender",
-      "product",
-      "payment"
+      "exchange"
     ],
     "date": [],
     "text": [
-      "name",
-      "price",
-      "date",
-      "city"
+      "ticker",
+      "company_name",
+      "sector"
     ],
-    "id": [
-      "order_id"
-    ]
+    "id": []
   },
   "suggested_queries": [
-    "Show top 10 by quantity",
-    "Total quantity by age",
-    "Average quantity",
-    "Distribution of age",
-    "Bottom 5 age by quantity",
-    "How many records per age"
+    "Show top 10 by price",
+    "Total price by exchange",
+    "Average price",
+    "Distribution of exchange",
+    "How many records per exchange"
   ],
-  "detected_at": "2026-04-08T20:21:39.987799",
+  "detected_at": "2026-04-08T22:07:24.540759",
   "detection_method": "heuristic"
 }

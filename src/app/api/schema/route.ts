@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserIdFromRequest } from '@/lib/user-context';
 
-const BACKEND_PORT = 3001;
-const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
+import { BACKEND_URL } from '@/lib/backend-url';
 
 export async function GET(request: NextRequest) {
   try {

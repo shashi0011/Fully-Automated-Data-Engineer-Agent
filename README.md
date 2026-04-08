@@ -1,6 +1,6 @@
 <div align="center">
 
-# DataForge AI
+# Omnix AI
 
 ### LLM-Powered Data Pipeline Platform
 
@@ -45,7 +45,7 @@
 
 ## 1. Project Title & Description
 
-**DataForge AI** is a full-stack, production-ready intelligent data pipeline platform that leverages a multi-agent AI architecture powered by **LangGraph** and **LangChain** to automate every stage of the data engineering lifecycle. Upload any dataset and the AI handles the rest.
+**Omnix AI** is a full-stack, production-ready intelligent data pipeline platform that leverages a multi-agent AI architecture powered by **LangGraph** and **LangChain** to automate every stage of the data engineering lifecycle. Upload any dataset and the AI handles the rest.
 
 ### What It Does
 
@@ -73,7 +73,7 @@ Upload **any dataset** (CSV, JSON, XLSX) — sales, medical, finance, news, HR, 
 
 ## 2. Architecture Diagram
 
-DataForge AI follows a dual-service architecture: a **Next.js 16** frontend with API routes that proxy to a **FastAPI** Python backend housing the AI agent system.
+Omnix AI follows a dual-service architecture: a **Next.js 16** frontend with API routes that proxy to a **FastAPI** Python backend housing the AI agent system.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -985,7 +985,7 @@ dataforge-ai/
 
 <div align="center">
 
-**DataForge AI** — LLM-Powered Data Pipeline Platform
+**Omnix AI** — LLM-Powered Data Pipeline Platform
 
 Built with Next.js 16 · FastAPI · LangGraph · DuckDB · LangChain
 

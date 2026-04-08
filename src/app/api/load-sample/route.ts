@@ -5,8 +5,7 @@ import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BASE_DIR = process.cwd();
 const SAMPLES_DIR = path.join(BASE_DIR, 'data', 'samples');
-const BACKEND_PORT = 3001;
-const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
+import { BACKEND_URL } from '@/lib/backend-url';
 
 export async function POST(request: NextRequest) {
   try {

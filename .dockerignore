@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.gitignore
+*.log
+.env
+.env.*
+venv
+__pycache__
+mini-services/dataforge-backend/__pycache__
+*.pyc

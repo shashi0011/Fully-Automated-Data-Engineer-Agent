@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 ",
+    "dev:frontend": "next dev -p 3000 2>&1",
+    "dev:backend": "cd mini-services/dataforge-backend && python -m uvicorn main:app --host 0.0.0.0 --port 3001 --reload",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",

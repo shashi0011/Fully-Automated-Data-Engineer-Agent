@@ -1,59 +1,35 @@
 {
-  "table": "dirty_50_rows_clean",
-  "original_count": 50,
-  "row_count": 50,
+  "table": "finance_stocks_clean",
+  "original_count": 30,
+  "row_count": 30,
   "rows_removed": 0,
   "steps": [
     {
-      "column": "name",
+      "column": "ticker",
       "operation": "llm_preclean",
       "strategy": "trim",
-      "missing_before": 5,
-      "missing_after": 5,
+      "missing_before": 0,
+      "missing_after": 0,
       "fill_preview": null
     },
     {
-      "column": "name",
-      "operation": "missing_value_imputation",
-      "strategy": "mode",
-      "missing_before": 5,
-      "missing_after": 0,
-      "fill_preview": "Alice"
-    },
-    {
-      "column": "age",
+      "column": "company_name",
       "operation": "llm_preclean",
-      "strategy": "trim,normalize_empty_to_null,parse_numeric",
-      "missing_before": 17,
-      "missing_after": 17,
+      "strategy": "trim",
+      "missing_before": 0,
+      "missing_after": 0,
       "fill_preview": null
     },
     {
-      "column": "age",
-      "operation": "missing_value_imputation",
-      "strategy": "mean",
-      "missing_before": 17,
-      "missing_after": 0,
-      "fill_preview": "31.303030303030305"
-    },
-    {
-      "column": "gender",
+      "column": "sector",
       "operation": "llm_preclean",
-      "strategy": "trim,lowercase",
-      "missing_before": 8,
-      "missing_after": 8,
+      "strategy": "trim",
+      "missing_before": 0,
+      "missing_after": 0,
       "fill_preview": null
     },
     {
-      "column": "gender",
-      "operation": "missing_value_imputation",
-      "strategy": "mode",
-      "missing_before": 8,
-      "missing_after": 0,
-      "fill_preview": "Female"
-    },
-    {
-      "column": "product",
+      "column": "exchange",
       "operation": "llm_preclean",
       "strategy": "trim",
       "missing_before": 0,
@@ -63,63 +39,63 @@
     {
       "column": "price",
       "operation": "llm_preclean",
-      "strategy": "trim,parse_numeric",
-      "missing_before": 8,
-      "missing_after": 8,
-      "fill_preview": null
-    },
-    {
-      "column": "price",
-      "operation": "missing_value_imputation",
-      "strategy": "mean",
-      "missing_before": 8,
-      "missing_after": 0,
-      "fill_preview": "23000.0"
-    },
-    {
-      "column": "quantity",
-      "operation": "llm_preclean",
-      "strategy": "trim,normalize_empty_to_null",
-      "missing_before": 30,
-      "missing_after": 30,
-      "fill_preview": null
-    },
-    {
-      "column": "quantity",
-      "operation": "missing_value_imputation",
-      "strategy": "numeric_coerce_mean",
-      "missing_before": 30,
-      "missing_after": 0,
-      "fill_preview": "1.3"
-    },
-    {
-      "column": "date",
-      "operation": "llm_preclean",
-      "strategy": "trim,parse_date",
+      "strategy": "parse_numeric",
       "missing_before": 0,
       "missing_after": 0,
       "fill_preview": null
     },
     {
-      "column": "city",
+      "column": "volume",
       "operation": "llm_preclean",
-      "strategy": "trim,normalize_empty_to_null",
-      "missing_before": 12,
-      "missing_after": 12,
+      "strategy": "parse_numeric",
+      "missing_before": 0,
+      "missing_after": 0,
       "fill_preview": null
     },
     {
-      "column": "city",
-      "operation": "missing_value_imputation",
-      "strategy": "mode",
-      "missing_before": 12,
+      "column": "market_cap",
+      "operation": "llm_preclean",
+      "strategy": "parse_numeric",
+      "missing_before": 0,
       "missing_after": 0,
-      "fill_preview": "Delhi"
+      "fill_preview": null
     },
     {
-      "column": "payment",
+      "column": "pe_ratio",
       "operation": "llm_preclean",
-      "strategy": "trim",
+      "strategy": "parse_numeric",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "dividend_yield",
+      "operation": "llm_preclean",
+      "strategy": "parse_numeric",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "change_percent",
+      "operation": "llm_preclean",
+      "strategy": "parse_numeric",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "high_52w",
+      "operation": "llm_preclean",
+      "strategy": "parse_numeric",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "low_52w",
+      "operation": "llm_preclean",
+      "strategy": "parse_numeric",
       "missing_before": 0,
       "missing_after": 0,
       "fill_preview": null
@@ -127,62 +103,84 @@
   ],
   "feature_importance": [
     {
+      "feature": "market_cap",
+      "type": "numeric",
+      "variance": 5.208726620689656e+23,
+      "mean_abs_correlation": 0.225495,
+      "importance_score": 3.6461086344827585e+23
+    },
+    {
+      "feature": "volume",
+      "type": "numeric",
+      "variance": 668170128850574.8,
+      "mean_abs_correlation": 0.268099,
+      "importance_score": 467719090195402.4
+    },
+    {
+      "feature": "high_52w",
+      "type": "numeric",
+      "variance": 30426.559356,
+      "mean_abs_correlation": 0.431847,
+      "importance_score": 21298.721104
+    },
+    {
       "feature": "price",
       "type": "numeric",
-      "variance": 337714285.714286,
-      "mean_abs_correlation": 0.10213,
-      "importance_score": 236400000.030639
+      "variance": 28440.683845,
+      "mean_abs_correlation": 0.437196,
+      "importance_score": 19908.60985
     },
     {
-      "feature": "order_id",
+      "feature": "low_52w",
       "type": "numeric",
-      "variance": 212.5,
-      "mean_abs_correlation": 0.085703,
-      "importance_score": 148.775711
+      "variance": 13072.394899,
+      "mean_abs_correlation": 0.391281,
+      "importance_score": 9150.793814
     },
     {
-      "feature": "age",
+      "feature": "pe_ratio",
       "type": "numeric",
-      "variance": 55.162647,
-      "mean_abs_correlation": 0.089968,
-      "importance_score": 38.640843
+      "variance": 2437.039724,
+      "mean_abs_correlation": 0.241254,
+      "importance_score": 1706.000183
     },
     {
-      "feature": "name",
-      "type": "categorical",
-      "cardinality_ratio": 0.1,
-      "importance_score": 0.16
-    },
-    {
-      "feature": "product",
-      "type": "categorical",
-      "cardinality_ratio": 0.08,
-      "importance_score": 0.148
-    },
-    {
-      "feature": "city",
-      "type": "categorical",
-      "cardinality_ratio": 0.06,
-      "importance_score": 0.136
-    },
-    {
-      "feature": "payment",
-      "type": "categorical",
-      "cardinality_ratio": 0.06,
-      "importance_score": 0.136
-    },
-    {
-      "feature": "gender",
-      "type": "categorical",
-      "cardinality_ratio": 0.04,
-      "importance_score": 0.124
-    },
-    {
-      "feature": "quantity",
+      "feature": "dividend_yield",
       "type": "numeric",
-      "variance": 0.085714,
-      "mean_abs_correlation": 0.108987,
-      "importance_score": 0.092696
+      "variance": 1.936115,
+      "mean_abs_correlation": 0.416311,
+      "importance_score": 1.480174
+    },
+    {
+      "feature": "change_percent",
+      "type": "numeric",
+      "variance": 1.016013,
+      "mean_abs_correlation": 0.356935,
+      "importance_score": 0.81829
+    },
+    {
+      "feature": "ticker",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "company_name",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "sector",
+      "type": "categorical",
+      "cardinality_ratio": 0.233333,
+      "importance_score": 0.24
+    },
+    {
+      "feature": "exchange",
+      "type": "categorical",
+      "cardinality_ratio": 0.066667,
+      "importance_score": 0.14
     }
   ]
 }

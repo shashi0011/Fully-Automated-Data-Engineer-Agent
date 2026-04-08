@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -884,7 +885,7 @@ function SampleDatasets({ onSelect }: { onSelect: (filename: string) => void }) 
       });
       const result = await response.json();
       if (result.status === 'success') {
-        onSelect(filename);
+        onSelect(result.file_path || filename);
       }
     } catch (error) {
       console.error('Failed to load sample:', error);
@@ -1097,8 +1098,6 @@ function WarehouseView() {
 // Landing Page Component
 function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
   const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
@@ -1124,10 +1123,8 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-xl">DataForge AI</span>
+              <Image src="/assets/Futuristic Omnix tech logo design.png" alt="Omnix logo" width={32} height={32} className="rounded-md border" />
+              <span className="font-bold text-xl">Omnix AI</span>
               <Badge variant="secondary" className="ml-2">v3.0</Badge>
             </div>
             <div className="hidden md:flex items-center gap-8">
@@ -1136,8 +1133,9 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
               <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" disabled={!mounted} onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
-                {mounted && resolvedTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              <Button variant="ghost" size="icon" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
+                <Sun className="hidden h-5 w-5 dark:block" />
+                <Moon className="h-5 w-5 dark:hidden" />
               </Button>
               <Button onClick={() => setAuthDialogOpen(true)} className="bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600">
                 Get Started
@@ -1194,7 +1192,7 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
                     <Bot className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <p className="font-semibold">DataForge AI Agent</p>
+                    <p className="font-semibold">Omnix Agent</p>
                     <p className="text-sm text-muted-foreground">LLM-powered analysis</p>
                   </div>
                 </div>
@@ -1306,12 +1304,16 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
 
       <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 h-5 text-white" /></div>
-              <span className="font-bold">DataForge AI v3.0</span>
+              <Image src="/assets/Futuristic Omnix tech logo design.png" alt="Omnix logo" width={32} height={32} className="rounded-md border" />
+              <span className="font-bold">Omnix v3.0</span>
             </div>
-            <p className="text-sm text-muted-foreground">LLM + XLSX + Airbyte — Works with ANY dataset</p>
+            <div className="text-sm text-muted-foreground">
+              <p>LLM + XLSX + Airbyte - Works with ANY dataset</p>
+              <p>Founder: Shashi Kant</p>
+              <p>Email: kantshashi3898@gmail.com</p>
+            </div>
           </div>
         </div>
       </footer>
@@ -1545,7 +1547,7 @@ function DownloadsSection({ schema }: { schema: any }) {
 
 
 // Main App Component
-export default function DataForgeApp() {
+export default function OmnixApp() {
   const { theme, setTheme } = useTheme();
   const { logout, isAuthenticated, restoreSession } = useAuthStore();
   const [currentView, setCurrentView] = useState<"landing" | "app">("landing");
@@ -1735,7 +1737,13 @@ export default function DataForgeApp() {
       
       const result = await response.json();
       const normalized = (result?.data && result?.status === "success")
-        ? ({ ...result.data, status: result.data.status || "success", message: result.message || result.data.message } as ExecutionResult)
+        ? ({
+            ...result.data,
+            status: result.data.status || result.status || "success",
+            message: result.message || result.data.message,
+            logs: result.logs || result.data.logs || [],
+            files: result.files || result.data.files || result.data.files_generated || [],
+          } as ExecutionResult)
         : (result as ExecutionResult);
 
       setExecutionResult(normalized);
@@ -1748,7 +1756,8 @@ export default function DataForgeApp() {
           await fetchStats(); 
           await fetchChartData(); 
           await fetchSchema(); 
-          const generatedSet = new Set((normalized.files || []).map((p) => toRelativePath(p)));
+          const generatedPaths = [...(normalized.files || []), ...(((normalized as any).files_generated) || [])];
+          const generatedSet = new Set(generatedPaths.map((p) => toRelativePath(p)));
           if (generatedSet.size > 0) {
             const refreshed = await fetch(`/api/files?_=${Date.now()}`).then((r) => r.json()).catch(() => ({ files: [] }));
             const matched = (refreshed.files || []).filter((f: FileItem) => generatedSet.has(toRelativePath(f.path)));
@@ -1801,13 +1810,14 @@ export default function DataForgeApp() {
         <div className="flex items-center justify-between h-14 px-4">
           <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}><Menu className="h-5 w-5" /></Button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 w-5 text-white" /></div>
-            <span className="font-bold">DataForge</span>
+            <Image src="/assets/Futuristic Omnix tech logo design.png" alt="Omnix logo" width={32} height={32} className="rounded-md border" />
+            <span className="font-bold">Omnix</span>
             {selectedFile && <Badge variant="outline" className="text-xs max-w-[100px] truncate">{selectedFile.name}</Badge>}
             {stats.dataset_type && stats.dataset_type !== 'none' && !selectedFile && <Badge variant="outline" className="text-xs">{stats.dataset_type}</Badge>}
           </div>
           <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            <Sun className="hidden h-5 w-5 dark:block" />
+            <Moon className="h-5 w-5 dark:hidden" />
           </Button>
         </div>
       </header>
@@ -1817,8 +1827,8 @@ export default function DataForgeApp() {
       <aside className={`lg:hidden fixed top-0 left-0 z-50 h-full w-64 bg-background border-r transform transition-transform ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-2 h-14 px-4 border-b">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 h-5 text-white" /></div>
-            <span className="font-bold">DataForge AI</span>
+            <Image src="/assets/Futuristic Omnix tech logo design.png" alt="Omnix logo" width={32} height={32} className="rounded-md border" />
+            <span className="font-bold">Omnix</span>
           </div>
           <ScrollArea className="flex-1 p-2">
             <nav className="space-y-1">
@@ -1838,8 +1848,8 @@ export default function DataForgeApp() {
       <div className="flex flex-1">
         <aside className="hidden lg:flex flex-col w-64 border-r bg-background">
           <div className="flex items-center gap-2 h-14 px-4 border-b">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center"><Zap className="w-5 h-5 text-white" /></div>
-            <span className="font-bold">DataForge AI</span>
+            <Image src="/assets/Futuristic omnix tech logo design.png" alt="Omnix logo" width={32} height={32} className="rounded-md border" />
+            <span className="font-bold">Omnix AI</span>
           </div>
           <ScrollArea className="flex-1 p-2">
             <nav className="space-y-1">
@@ -1868,7 +1878,9 @@ export default function DataForgeApp() {
               </div>
             )}
             <Button variant="ghost" className="w-full justify-start gap-3" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}{theme === "dark" ? "Light Mode" : "Dark Mode"}
+              <Sun className="hidden h-5 w-5 dark:block" />
+              <Moon className="h-5 w-5 dark:hidden" />
+              {theme === "dark" ? "Light Mode" : "Dark Mode"}
             </Button>
             <Button variant="ghost" className="w-full justify-start gap-3 text-red-500 hover:text-red-600" onClick={handleLogout}><LogOut className="h-5 w-5" />Logout</Button>
           </div>
@@ -1914,7 +1926,8 @@ export default function DataForgeApp() {
                         {/* ✅ FIX: Hide samples when file is uploaded */}
                         {!selectedFile && (
                           <SampleDatasets onSelect={async (name: string) => {
-                            await handleSelectFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }, true);
+                            const path = name.includes("/") ? toRelativePath(name) : `data/raw/${name}`;
+                            await handleSelectFile({ name: path.split("/").pop() || name, path, type: "csv", category: "raw_data", size: 0 }, true);
                             await fetchSchema();
                             await fetchStats();
                             await fetchChartData();
@@ -1976,8 +1989,9 @@ export default function DataForgeApp() {
                   <div className="flex items-center gap-2"><Separator className="flex-1" /><span className="text-sm text-muted-foreground">or try sample datasets</span><Separator className="flex-1" /></div>
                   {/* ✅ FIX: Hide samples when file is uploaded */}
                   {!selectedFile && (
-                    <SampleDatasets onSelect={async (name: string) => {
-                      await handleSelectFile({ name, path: `data/raw/${name}`, type: "csv", category: "raw_data", size: 0 }, true);
+                  <SampleDatasets onSelect={async (name: string) => {
+                      const path = name.includes("/") ? toRelativePath(name) : `data/raw/${name}`;
+                      await handleSelectFile({ name: path.split("/").pop() || name, path, type: "csv", category: "raw_data", size: 0 }, true);
                       await fetchSchema();
                       await fetchStats();
                       await fetchChartData();
@@ -2024,7 +2038,8 @@ export default function DataForgeApp() {
                     <Card className="shadow-lg">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2"><Play className="h-5 w-5 text-green-500" />Agent Output</CardTitle><Badge variant={executionResult.status === "success" ? "default" : "destructive"}>{executionResult.status}</Badge></div>
-                        <CardDescription>Files generated by DataForge Agent</CardDescription>
+                        <CardDescription>Files generated by Omnix Agent</CardDescription>
+
                       </CardHeader>
                       <CardContent>
                         {executionResult.logs && executionResult.logs.length > 0 && (
@@ -2076,9 +2091,14 @@ export default function DataForgeApp() {
 
               {/* Reports Tab */}
               {activeTab === "reports" && (
-                <>
-                  <div className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-purple-500" /><h1 className="text-2xl font-bold">Reports</h1></div>
-                  <p className="text-muted-foreground">View generated reports and analytics outputs.</p>
+                <>                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-purple-500" /><h1 className="text-2xl font-bold">Reports</h1></div>
+                    <Button asChild>
+                      <a href="/view-report">View Report</a>
+                    </Button>
+                  </div>
+                  <p className="text-muted-foreground">View generated reports and open the interactive dashboard.</p>
+
                   <FileExplorer filterCategory="report" onSelectFile={(file) => handleSelectFile(file)} activeFilePath={selectedFile?.path} />
                 </>
               )}

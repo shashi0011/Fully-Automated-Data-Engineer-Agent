@@ -1,11 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${BACKEND_URL}/dashboard/charts`, {
+    const userId = getUserIdFromRequest(request);
+    const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/dashboard/charts${suffix}`, {
       signal: AbortSignal.timeout(15000),
     });
     const text = await response.text();

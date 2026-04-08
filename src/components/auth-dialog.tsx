@@ -153,7 +153,7 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center text-xl">
-            Welcome to DataForge AI
+            Welcome to Omnix
           </DialogTitle>
           <DialogDescription className="text-center">
             Sign in to your account or create a new one to get started.

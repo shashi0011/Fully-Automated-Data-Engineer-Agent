@@ -18,6 +18,8 @@ model User {
   email     String   @unique
   name      String?
   password  String?
+  workspaceRoot String?
+  dbPath    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -4,6 +4,8 @@ interface User {
   id: string;
   email: string;
   name: string;
+  workspaceRoot?: string | null;
+  dbPath?: string | null;
 }
 
 interface AuthState {
@@ -24,6 +26,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (typeof window !== "undefined") {
       localStorage.setItem("dataforge_token", token);
       localStorage.setItem("dataforge_user", JSON.stringify(user));
+      document.cookie = `df_user_id=${encodeURIComponent(user.id)}; path=/; max-age=604800; samesite=lax`;
     }
     set({ token, user, isAuthenticated: true });
   },
@@ -32,6 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (typeof window !== "undefined") {
       localStorage.removeItem("dataforge_token");
       localStorage.removeItem("dataforge_user");
+      document.cookie = "df_user_id=; path=/; max-age=0; samesite=lax";
     }
     set({ token: null, user: null, isAuthenticated: false });
   },
@@ -43,6 +47,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (token && userStr) {
         try {
           const user = JSON.parse(userStr) as User;
+          document.cookie = `df_user_id=${encodeURIComponent(user.id)}; path=/; max-age=604800; samesite=lax`;
           set({ token, user, isAuthenticated: true });
         } catch {
           // Invalid user data, clear storage

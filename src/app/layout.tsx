@@ -15,15 +15,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DataForge AI - AI-Powered Data Pipeline Platform",
+  title: "Omnix - AI-Powered Data Pipeline Platform",
   description: "Build data pipelines with AI. Upload any dataset, get LLM-powered analysis, generate dbt models, and create production-ready pipelines.",
-  keywords: ["DataForge", "AI", "data pipeline", "dbt", "LLM", "DuckDB"],
-  authors: [{ name: "DataForge AI" }],
+  keywords: ["Omnix", "AI", "data pipeline", "dbt", "LLM", "DuckDB"],
+  authors: [{ name: "Omnix AI" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/assets/logo.png",
   },
   openGraph: {
-    title: "DataForge AI",
+    title: "Omnix AI",
     description: "Build data pipelines with AI — No coding required",
     type: "website",
   },

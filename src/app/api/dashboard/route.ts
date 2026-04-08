@@ -1,10 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
+const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`http://localhost:${BACKEND_PORT}/dashboard/charts?XTransformPort=${BACKEND_PORT}`);
+    const userId = getUserIdFromRequest(request);
+    const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/dashboard/stats${suffix}`);
     const text = await response.text();
     let data: any;
     try {
@@ -15,12 +19,16 @@ export async function GET() {
     }
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Charts API error:', error);
+    console.error('Stats API error:', error);
     return NextResponse.json({
-      pipeline_runs: [],
-      primary_chart: [],
-      secondary_chart: [],
-      trend_chart: []
+      total_pipelines: 0,
+      total_executions: 0,
+      success_rate: 0,
+      tables: 0,
+      reports: 0,
+      data_volume: 0,
+      dataset_type: 'none',
+      current_table: 'none',
     });
   }
 }

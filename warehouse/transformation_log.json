@@ -1,0 +1,41 @@
+{
+  "table": "sample_tableau_dataset_clean",
+  "original_count": 200,
+  "row_count": 200,
+  "rows_removed": 0,
+  "steps": [],
+  "feature_importance": [
+    {
+      "feature": "Sales",
+      "type": "numeric",
+      "variance": 1828745.123593,
+      "mean_abs_correlation": 0.065905,
+      "importance_score": 1280121.606287
+    },
+    {
+      "feature": "Profit",
+      "type": "numeric",
+      "variance": 262173.968819,
+      "mean_abs_correlation": 0.065905,
+      "importance_score": 183521.797945
+    },
+    {
+      "feature": "Date",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "Region",
+      "type": "categorical",
+      "cardinality_ratio": 0.02,
+      "importance_score": 0.112
+    },
+    {
+      "feature": "Category",
+      "type": "categorical",
+      "cardinality_ratio": 0.015,
+      "importance_score": 0.109
+    }
+  ]
+}

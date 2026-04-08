@@ -1,120 +1,120 @@
 {
-  "source_file": "R:\\New folder (2)\\my-project\\data\\clean\\dirty_dataset_clean_clean.csv",
-  "table_name": "dirty_dataset_clean_clean_clean",
+  "source_file": "R:\\New folder (2)\\my-project\\data\\raw\\dirty_dataset.csv",
+  "table_name": "dirty_dataset_clean",
   "dataset_type": "sales",
-  "dataset_description": "Sales dataset with 11 rows and 10 columns (3 numeric, 1 date/time, 5 text). Key columns: \u2018order_id\u2019, \u2018customer_name\u2019, \u2018age\u2019, \u2018gender\u2019, \u2018product\u2019, \u2018and 5 more\u2019.",
-  "row_count": 11,
+  "dataset_description": "Sales dataset with 100 rows and 10 columns (1 numeric, 4 categorical, 4 text). Key columns: \u2018order_id\u2019, \u2018customer_name\u2019, \u2018age\u2019, \u2018gender\u2019, \u2018product\u2019, \u2018and 5 more\u2019.",
+  "row_count": 100,
   "column_count": 10,
   "columns": {
     "order_id": {
-      "type": "float64",
+      "type": "int64",
       "semantic": "id",
       "nullable": false,
       "sample_values": [
-        1099.0,
-        1068.0,
-        1040.0
+        1000,
+        1001,
+        1002
       ],
-      "unique_count": 11,
-      "total_count": 11,
+      "unique_count": 100,
+      "total_count": 100,
       "null_count": 0,
       "null_pct": 0.0
     },
     "customer_name": {
       "type": "object",
       "semantic": "person",
-      "nullable": false,
+      "nullable": true,
       "sample_values": [
+        "John Doe",
         "Ravi Kumar",
-        "Ravi Kumar",
-        "Ravi Kumar"
+        "Test User"
       ],
       "unique_count": 5,
-      "total_count": 11,
-      "null_count": 0,
-      "null_pct": 0.0
+      "total_count": 74,
+      "null_count": 26,
+      "null_pct": 26.0
     },
     "age": {
-      "type": "float64",
-      "semantic": "count",
-      "nullable": false,
+      "type": "object",
+      "semantic": "category",
+      "nullable": true,
       "sample_values": [
-        25.0,
-        30.0,
-        30.0
+        "35",
+        "35",
+        "30"
       ],
-      "unique_count": 3,
-      "total_count": 11,
-      "null_count": 0,
-      "null_pct": 0.0
+      "unique_count": 5,
+      "total_count": 68,
+      "null_count": 32,
+      "null_pct": 32.0
     },
     "gender": {
       "type": "object",
-      "semantic": "generic",
+      "semantic": "category",
       "nullable": true,
       "sample_values": [
-        "female",
-        "m",
-        "female"
+        "F",
+        "F",
+        "Female"
       ],
-      "unique_count": 3,
-      "total_count": 9,
-      "null_count": 2,
-      "null_pct": 18.2
+      "unique_count": 4,
+      "total_count": 82,
+      "null_count": 18,
+      "null_pct": 18.0
     },
     "product": {
       "type": "object",
-      "semantic": "generic",
+      "semantic": "category",
       "nullable": false,
       "sample_values": [
-        "Tablet",
+        "Headphones",
         "Phone",
-        "Tablet"
+        "Laptop"
       ],
       "unique_count": 5,
-      "total_count": 11,
+      "total_count": 100,
       "null_count": 0,
       "null_pct": 0.0
     },
     "price": {
-      "type": "float64",
+      "type": "object",
       "semantic": "money",
       "nullable": false,
       "sample_values": [
-        15000.0,
-        2000.0,
-        2000.0
+        "30000",
+        "15000",
+        "15000"
       ],
-      "unique_count": 4,
-      "total_count": 11,
+      "unique_count": 5,
+      "total_count": 100,
       "null_count": 0,
       "null_pct": 0.0
     },
     "quantity": {
       "type": "float64",
       "semantic": "count",
-      "nullable": false,
+      "nullable": true,
       "sample_values": [
+        2.0,
         1.0,
-        3.0,
         2.0
       ],
       "unique_count": 3,
-      "total_count": 11,
-      "null_count": 0,
-      "null_pct": 0.0
+      "total_count": 62,
+      "null_count": 38,
+      "null_pct": 38.0
     },
     "order_date": {
-      "type": "datetime",
+      "type": "object",
       "semantic": "datetime",
       "nullable": false,
       "sample_values": [
-        "2024-02-12",
-        "2024-01-31",
-        "2024-02-29"
+        "2024/02/05",
+        "2024-01-02",
+        "2024-02-13"
       ],
-      "unique_count": 9,
-      "total_count": 11,
+      "unique_count": 73,
+      "total_count": 100,
       "null_count": 0,
       "null_pct": 0.0
     },
@@ -124,56 +124,58 @@
       "nullable": false,
       "sample_values": [
         "Chennai",
-        "Kolkata",
-        "Unknown"
+        "Unknown",
+        "Kolkata"
       ],
       "unique_count": 6,
-      "total_count": 11,
+      "total_count": 100,
       "null_count": 0,
       "null_pct": 0.0
     },
     "payment_method": {
       "type": "object",
-      "semantic": "generic",
+      "semantic": "category",
       "nullable": false,
       "sample_values": [
-        "Cash",
-        "Cash",
-        "Cash"
+        "Card",
+        "Card",
+        "UPI"
       ],
       "unique_count": 3,
-      "total_count": 11,
+      "total_count": 100,
       "null_count": 0,
       "null_pct": 0.0
     }
   },
   "column_summary": {
     "numeric": [
-      "age",
-      "price",
       "quantity"
     ],
-    "categorical": [],
-    "date": [
-      "order_date"
-    ],
-    "text": [
-      "customer_name",
+    "categorical": [
+      "age",
       "gender",
       "product",
-      "city",
       "payment_method"
+    ],
+    "date": [],
+    "text": [
+      "customer_name",
+      "price",
+      "order_date",
+      "city"
     ],
     "id": [
       "order_id"
     ]
   },
   "suggested_queries": [
-    "Show top 10 by age",
-    "Average age",
-    "age trend over time"
+    "Show top 10 by quantity",
+    "Total quantity by age",
+    "Average quantity",
+    "Distribution of age",
+    "Bottom 5 age by quantity",
+    "How many records per age"
   ],
-  "detected_at": "2026-04-08T12:07:19.357634",
-  "detection_method": "heuristic",
-  "raw_table": "dirty_dataset_clean_clean_raw"
+  "detected_at": "2026-04-08T17:26:14.948154",
+  "detection_method": "heuristic"
 }

@@ -1,0 +1,104 @@
+{
+  "table": "dirty_dataset_clean",
+  "original_count": 100,
+  "row_count": 100,
+  "rows_removed": 0,
+  "steps": [
+    {
+      "column": "customer_name",
+      "operation": "missing_value_imputation",
+      "strategy": "mode",
+      "missing_before": 26,
+      "missing_after": 0,
+      "fill_preview": "Jane Smith"
+    },
+    {
+      "column": "age",
+      "operation": "missing_value_imputation",
+      "strategy": "mode",
+      "missing_before": 32,
+      "missing_after": 0,
+      "fill_preview": "twenty"
+    },
+    {
+      "column": "gender",
+      "operation": "missing_value_imputation",
+      "strategy": "mode",
+      "missing_before": 18,
+      "missing_after": 0,
+      "fill_preview": "Female"
+    },
+    {
+      "column": "quantity",
+      "operation": "missing_value_imputation",
+      "strategy": "mean",
+      "missing_before": 38,
+      "missing_after": 0,
+      "fill_preview": "1.9516129032258065"
+    }
+  ],
+  "feature_importance": [
+    {
+      "feature": "order_id",
+      "type": "numeric",
+      "variance": 841.666667,
+      "mean_abs_correlation": 0.029977,
+      "importance_score": 589.17566
+    },
+    {
+      "feature": "order_date",
+      "type": "categorical",
+      "cardinality_ratio": 0.73,
+      "importance_score": 0.446
+    },
+    {
+      "feature": "quantity",
+      "type": "numeric",
+      "variance": 0.372271,
+      "mean_abs_correlation": 0.029977,
+      "importance_score": 0.269583
+    },
+    {
+      "feature": "city",
+      "type": "categorical",
+      "cardinality_ratio": 0.06,
+      "importance_score": 0.136
+    },
+    {
+      "feature": "customer_name",
+      "type": "categorical",
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
+    },
+    {
+      "feature": "age",
+      "type": "categorical",
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
+    },
+    {
+      "feature": "product",
+      "type": "categorical",
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
+    },
+    {
+      "feature": "price",
+      "type": "categorical",
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
+    },
+    {
+      "feature": "gender",
+      "type": "categorical",
+      "cardinality_ratio": 0.04,
+      "importance_score": 0.124
+    },
+    {
+      "feature": "payment_method",
+      "type": "categorical",
+      "cardinality_ratio": 0.03,
+      "importance_score": 0.118
+    }
+  ]
+}

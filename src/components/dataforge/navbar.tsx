@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import Image from "next/image";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -23,20 +24,7 @@ const navLinks = [
 ];
 
 function ThemeToggle() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return (
-      <Button variant="ghost" size="icon" disabled>
-        <Sun className="h-5 w-5" />
-      </Button>
-    );
-  }
+  const { setTheme, resolvedTheme } = useTheme();
 
   return (
     <Button
@@ -44,11 +32,8 @@ function ThemeToggle() {
       size="icon"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
-      {resolvedTheme === "dark" ? (
-        <Sun className="h-5 w-5" />
-      ) : (
-        <Moon className="h-5 w-5" />
-      )}
+      <Sun className="hidden h-5 w-5 dark:block" />
+      <Moon className="h-5 w-5 dark:hidden" />
     </Button>
   );
 }
@@ -62,10 +47,8 @@ export function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-xl">DataForge AI</span>
+            <Image src="/assets/logo.png" alt="Omnix logo" width={32} height={32} className="rounded-md border" />
+            <span className="font-bold text-xl">Omnix</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -139,10 +122,8 @@ export function AppNavbar() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center px-4 md:px-6">
         <Link href="/home" className="flex items-center gap-2 mr-6">
-          <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-bold text-xl hidden sm:block">DataForge AI</span>
+          <Image src="/assets/logo.png" alt="Omnix logo" width={32} height={32} className="rounded-md border" />
+          <span className="font-bold text-xl hidden sm:block">Omnix</span>
         </Link>
 
         <div className="flex-1" />

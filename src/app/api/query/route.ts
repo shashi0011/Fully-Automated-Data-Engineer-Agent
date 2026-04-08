@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserIdFromRequest(request);
     const body = await request.json();
-    
+
     const response = await fetch(`${BACKEND_URL}/query`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, user_id: body.user_id || userId }),
     });
-    
+
     const text = await response.text();
     let data: any;
     try {

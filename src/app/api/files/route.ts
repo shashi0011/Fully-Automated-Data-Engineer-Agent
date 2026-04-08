@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 export async function GET(request: NextRequest) {
   try {
+    const userId = getUserIdFromRequest(request);
     const { searchParams } = new URL(request.url);
     const filePath = searchParams.get('path');
-    
+
     if (filePath) {
-      const response = await fetch(`${BACKEND_URL}/files/${encodeURIComponent(filePath)}`);
+      const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+      const response = await fetch(`${BACKEND_URL}/files/${encodeURIComponent(filePath)}${suffix}`);
       const text = await response.text();
       let data: any;
       try {
@@ -20,8 +23,9 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json(data);
     }
-    
-    const response = await fetch(`${BACKEND_URL}/files`);
+
+    const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/files${suffix}`);
     const text = await response.text();
     let data: any;
     try {

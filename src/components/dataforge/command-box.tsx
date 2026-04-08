@@ -60,7 +60,7 @@ export function CommandBox({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-xl">
           <Sparkles className="h-5 w-5 text-violet-500" />
-          Tell DataForge Agent what you want to do
+          Tell Omnix Agent what you want to do
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

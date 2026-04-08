@@ -1,58 +1,64 @@
 version: 2
 
 models:
-  - name: stg_medical_records
-    description: "Staging model for medical records. Pulls data from the raw medical records table."
+  - name: stg_dirty_dataset_clean
+    description: "Staging model that cleans and prepares the dirty_dataset_clean for further analysis."
     columns:
-      - name: patient_id
-        description: "Unique identifier for each patient."
-      - name: patient_name
-        description: "Full name of the patient."
+      - name: order_id
+        description: "Unique identifier for each order."
+        tests:
+          - not_null
+      - name: customer_name
+        description: "Name of the customer."
+        tests:
+          - not_null
       - name: age
-        description: "Age of the patient in years."
+        description: "Age of the customer."
       - name: gender
-        description: "Gender of the patient."
-      - name: diagnosis
-        description: "Medical diagnosis for the patient."
-      - name: treatment
-        description: "Treatment received by the patient."
-      - name: medication
-        description: "Medication prescribed to the patient."
-      - name: doctor_name
-        description: "Name of the attending physician."
-      - name: department
-        description: "Department where the treatment was administered."
-      - name: hospital
-        description: "Name of the hospital."
-      - name: admission_date
-        description: "Date of patient admission."
-      - name: discharge_date
-        description: "Date of patient discharge."
-      - name: treatment_cost
-        description: "Total cost of treatment."
-      - name: recovery_status
-        description: "Current recovery status of the patient."
+        description: "Gender of the customer."
+      - name: product
+        description: "Product purchased by the customer."
+      - name: price
+        description: "Price of the product."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["0", "30000", "15000"]  # Example values
+      - name: quantity
+        description: "Quantity of the product purchased."
+        tests:
+          - not_null
+      - name: order_date
+        description: "Date when the order was placed."
+        tests:
+          - not_null
+      - name: city
+        description: "City where the customer resides."
+      - name: payment_method
+        description: "Payment method used for the purchase."
 
-  - name: int_medical_records
-    description: "Intermediate model that aggregates treatment costs by department."
+  - name: int_dirty_dataset_clean
+    description: "Intermediate model that aggregates total sales by product and city."
     columns:
-      - name: department
-        description: "Department of treatment."
-      - name: total_treatment_cost
-        description: "Total treatment costs for the department."
-      - name: patient_count
-        description: "Number of patients treated in the department."
-      - name: average_treatment_cost
-        description: "Average treatment cost per patient in the department."
+      - name: product
+        description: "Product purchased."
+      - name: city
+        description: "City of the customer."
+      - name: total_sales
+        description: "Total sales generated from the product in the given city."
+      - name: total_orders
+        description: "Total number of orders for the product in the given city."
+      - name: total_customers
+        description: "Total unique customers who purchased the product."
 
-  - name: mart_medical_records_analysis
-    description: "Final mart model that summarizes patient demographics and treatment costs by gender."
+  - name: mart_sales_summary
+    description: "Mart model providing a summary view of total sales by city and payment method."
     columns:
-      - name: gender
-        description: "Gender of the patients."
-      - name: patient_count
-        description: "Total number of patients per gender."
-      - name: total_treatment_cost
-        description: "Total treatment costs per gender."
-      - name: average_treatment_cost
-        description: "Average treatment cost per patient by gender."
+      - name: city
+        description: "City where the customers are located."
+      - name: payment_method
+        description: "Payment method used for purchases."
+      - name: total_sales
+        description: "Total sales amount for the city and payment method."
+      - name: total_orders
+        description: "Total number of orders processed for the city and payment method." 

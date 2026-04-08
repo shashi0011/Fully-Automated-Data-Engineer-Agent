@@ -129,7 +129,10 @@ class LLMAgent:
         if primary_llm is not None:
             try:
                 if structured_output_type:
-                    chain = primary_llm.with_structured_output(structured_output_type)
+                    chain = primary_llm.with_structured_output(
+                        structured_output_type,
+                        method="function_calling",
+                    )
                     result = await chain.ainvoke(messages)
                 else:
                     response = await primary_llm.ainvoke(messages)
@@ -146,7 +149,10 @@ class LLMAgent:
             try:
                 logger.info(f"[Fallback] Trying {fallback_llm.model}...")
                 if structured_output_type:
-                    chain = fallback_llm.with_structured_output(structured_output_type)
+                    chain = fallback_llm.with_structured_output(
+                        structured_output_type,
+                        method="function_calling",
+                    )
                     result = await chain.ainvoke(messages)
                 else:
                     response = await fallback_llm.ainvoke(messages)

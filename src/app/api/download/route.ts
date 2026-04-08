@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
@@ -9,11 +10,13 @@ const ALLOWED_PREFIXES = [
   'pipelines/',
   'reports/',
   'warehouse/',
+  'configs/',
   'dbt_project/',
 ];
 
 export async function GET(request: NextRequest) {
   try {
+    const userId = getUserIdFromRequest(request);
     const { searchParams } = new URL(request.url);
     const filePath = searchParams.get('path');
 
@@ -26,7 +29,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'File path not allowed' }, { status: 403 });
     }
 
-    const response = await fetch(`${BACKEND_URL}/download/${filePath}`, {
+    const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/download/${filePath}${suffix}`, {
       signal: AbortSignal.timeout(30000),
     });
 

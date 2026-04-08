@@ -1,4 +1,4 @@
 Category,record_count,total_Sales,avg_Sales,min_Sales,max_Sales
-Technology,73,200338.0,2744.36,254.0,4899.0
-Furniture,66,155522.0,2356.39,116.0,4852.0
-Office Supplies,61,153999.0,2524.57,104.0,4969.0
+Technology,73,200338.0,2744.36,254,4899
+Furniture,66,155522.0,2356.39,116,4852
+Office Supplies,61,153999.0,2524.57,104,4969

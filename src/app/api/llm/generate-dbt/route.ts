@@ -1,19 +1,21 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserIdFromRequest(request);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
     const body = await request.json().catch(() => ({}));
     try {
-        const response = await fetch(`${BACKEND_URL}/llm/analyze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+      const response = await fetch(`${BACKEND_URL}/llm/generate-dbt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, user_id: body.user_id || userId }),
+      });
 
       const text = await response.text();
 
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (error?.name === 'AbortError') {
       console.error('Generate dbt error: Backend request timed out (120s)');
       return NextResponse.json(
-        { status: 'error', message: 'Request timed out — LLM is taking too long', models: [] },
+        { status: 'error', message: 'Request timed out - LLM is taking too long', models: [] },
         { status: 504 }
       );
     }

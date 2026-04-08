@@ -117,6 +117,11 @@ export function FileExplorer({ files: externalFiles, onRefresh: externalOnRefres
 
   // ✅ FIX: Fetch file content from API, parse CSV into table rows
   const handleViewFile = async (file: FileItem) => {
+    if (file.type?.toLowerCase() === "html") {
+      window.open(`/api/download?path=${encodeURIComponent(file.path)}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     setSelectedFile(file);
     setViewDialogOpen(true);
     setViewLoading(true);

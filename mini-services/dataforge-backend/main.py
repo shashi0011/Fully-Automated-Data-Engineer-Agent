@@ -1,5 +1,5 @@
 """
-DataForge AI - FastAPI Backend (Full LLM + XLSX + Airbyte)
+Omnix - FastAPI Backend (Full LLM + XLSX + Airbyte)
 Main application entry point - Works with ANY dataset
 """
 from fastapi.responses import FileResponse   # ADD THIS LINE
@@ -11,9 +11,11 @@ import json
 import os
 import sys
 import shutil
+import re
 from datetime import datetime
 import asyncio
 import duckdb
+import pandas as pd
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -39,13 +41,20 @@ from agent.utils import (
     quote_identifier,
     validate_identifier,
 )
+from user_workspace import (
+    get_user_workspace,
+    load_user_schema,
+    save_user_schema,
+    resolve_user_relative_path,
+    relative_to_user_root,
+)
 # ============ LLM Configuration ============
 # Set your OpenAI API key here OR set OPENAI_API_KEY env variable
 import os
 if not os.getenv("OPENAI_API_KEY"):
     os.environ["OPENAI_API_KEY"] = ""  # Replace with your real key
 app = FastAPI(
-    title="DataForge AI Backend",
+    title="Omnix Backend",
     description="AI-powered Data Engineering Platform - Works with ANY dataset",
     version="3.0.0"
 )
@@ -86,10 +95,12 @@ class QueryRequest(BaseModel):
 class LLMAnalysisRequest(BaseModel):
     use_llm: bool = True
     active_file: Optional[str] = None
+    user_id: Optional[str] = None
 
 
 class ActiveFileRequest(BaseModel):
     file_path: str
+    user_id: Optional[str] = None
 
 
 class AirbyteSourceRequest(BaseModel):
@@ -124,7 +135,7 @@ class FileInfo(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "DataForge AI Backend is running", "version": "3.0.0"}
+    return {"message": "Omnix Backend is running", "version": "3.0.0"}
 
 
 @app.get("/health")
@@ -132,16 +143,51 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
-async def _activate_file_context(file_path: str) -> Dict[str, Any]:
-    """Activate a specific file as the current working dataset."""
+def _safe_relative(base: str, full_path: str) -> str:
+    return os.path.relpath(full_path, base).replace("\\", "/")
+
+
+def _resolve_workspace_file_path(user_id: Optional[str], file_path: str) -> str:
+    """Resolve a file path with tenant-first and legacy fallback."""
+    workspace = get_user_workspace(user_id)
+    user_root = os.path.realpath(workspace["root"])
+    base_root = os.path.realpath(BASE_PATH)
+
+    candidates: List[str] = []
     if os.path.isabs(file_path):
-        full_path = os.path.realpath(file_path)
+        candidates.append(os.path.realpath(file_path))
     else:
-        full_path = os.path.realpath(os.path.join(BASE_PATH, file_path))
-    if not full_path.startswith(os.path.realpath(BASE_PATH) + os.sep):
+        candidates.append(os.path.realpath(os.path.join(user_root, file_path)))
+        candidates.append(os.path.realpath(os.path.join(base_root, file_path)))
+
+    for candidate in candidates:
+        if candidate.startswith(user_root + os.sep) and os.path.exists(candidate):
+            return candidate
+        if candidate.startswith(base_root + os.sep) and os.path.exists(candidate):
+            return candidate
+    raise FileNotFoundError(file_path)
+
+
+async def _activate_file_context(file_path: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    """Activate a specific file as the current working dataset."""
+    workspace = get_user_workspace(user_id)
+    user_root = os.path.realpath(workspace["root"])
+    try:
+        if os.path.isabs(file_path):
+            full_path = os.path.realpath(file_path)
+        else:
+            full_path = resolve_user_relative_path(user_id, file_path)
+    except ValueError:
+        return {"error": "Access denied: path outside project directory"}
+    if not full_path.startswith(user_root + os.sep):
         return {"error": "Access denied: path outside project directory"}
     if not os.path.exists(full_path):
-        return {"error": f"File not found: {file_path}"}
+        # Backward-compatible fallback for previously stored global paths like data/raw/*.csv
+        legacy_candidate = os.path.realpath(os.path.join(BASE_PATH, file_path))
+        if legacy_candidate.startswith(os.path.realpath(BASE_PATH) + os.sep) and os.path.exists(legacy_candidate):
+            full_path = legacy_candidate
+        else:
+            return {"error": f"File not found: {file_path}"}
 
     ext = os.path.splitext(full_path)[1].lower()
     ingest_path = full_path
@@ -159,14 +205,16 @@ async def _activate_file_context(file_path: str) -> Dict[str, Any]:
     schema = await schema_detector.detect_schema_from_file(ingest_path, use_llm=True)
     if "error" in schema:
         return {"error": schema["error"]}
+    schema["source_file"] = relative_to_user_root(user_id, full_path)
+    save_user_schema(user_id, schema)
 
-    ingest_result = await duckdb_tool.ingest_file(ingest_path)
+    ingest_result = await duckdb_tool.ingest_file(ingest_path, user_id=user_id)
     if "error" in ingest_result:
         return {"error": ingest_result["error"]}
 
     return {
         "status": "success",
-        "schema": load_schema(),
+        "schema": load_user_schema(user_id),
         "ingested_path": ingest_path,
     }
 
@@ -174,9 +222,9 @@ async def _activate_file_context(file_path: str) -> Dict[str, Any]:
 # ============ SCHEMA DETECTION ROUTES ============
 
 @app.get("/schema")
-async def get_current_schema():
+async def get_current_schema(user_id: Optional[str] = None):
     """Get the currently detected schema"""
-    schema = await duckdb_tool.get_current_schema()
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
     return {
         "status": "success",
         "schema": schema
@@ -184,11 +232,13 @@ async def get_current_schema():
 
 
 @app.post("/schema/detect")
-async def detect_schema(file_path: str):
+async def detect_schema(file_path: str, user_id: Optional[str] = None):
     """Detect schema from a specific file"""
     result = await schema_detector.detect_schema_from_file(file_path)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
+    if "error" not in result:
+        save_user_schema(user_id, result)
     return {
         "status": "success",
         "schema": result
@@ -196,10 +246,10 @@ async def detect_schema(file_path: str):
 
 
 @app.get("/schema/suggestions")
-async def get_query_suggestions():
+async def get_query_suggestions(user_id: Optional[str] = None):
     """Get suggested queries based on current schema"""
     suggestions = await query_agent.get_suggested_queries()
-    schema = await query_agent.get_current_schema()
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
     return {
         "status": "success",
         "suggestions": suggestions,
@@ -211,7 +261,7 @@ async def get_query_suggestions():
 @app.post("/active-file")
 async def set_active_file(request: ActiveFileRequest):
     """Set a selected file as the active dataset for all operations."""
-    result = await _activate_file_context(request.file_path)
+    result = await _activate_file_context(request.file_path, user_id=request.user_id)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return {
@@ -224,7 +274,7 @@ async def set_active_file(request: ActiveFileRequest):
 # ============ FILE UPLOAD ROUTES ============
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), user_id: Optional[str] = None):
     """Upload a data file (CSV, JSON, or XLSX)"""
     # Validate file type
     allowed_extensions = ['.csv', '.json', '.xlsx', '.xls', '.xlsm']
@@ -237,7 +287,8 @@ async def upload_file(file: UploadFile = File(...)):
         )
 
     # Save file using BASE_PATH from utils
-    upload_dir = os.path.join(BASE_PATH, "data/raw")
+    workspace = get_user_workspace(user_id)
+    upload_dir = workspace["raw_dir"]
     os.makedirs(upload_dir, exist_ok=True)
 
     file_path = os.path.join(upload_dir, file.filename)
@@ -269,6 +320,8 @@ async def upload_file(file: UploadFile = File(...)):
 
     # Detect schema for CSV/JSON
     schema = await schema_detector.detect_schema_from_file(file_path, use_llm=True)
+    schema["source_file"] = relative_to_user_root(user_id, file_path)
+    save_user_schema(user_id, schema)
 
     return {
         "status": "success",
@@ -279,7 +332,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 
 @app.post("/upload-and-process")
-async def upload_and_process(file: UploadFile = File(...)):
+async def upload_and_process(file: UploadFile = File(...), user_id: Optional[str] = None):
     """Upload a file — only saves, detects schema, and ingests raw data.
     Does NOT auto-transform, auto-generate pipeline, or auto-generate report.
     The user must issue commands through the agent to perform those actions.
@@ -293,7 +346,8 @@ async def upload_and_process(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Unsupported file type")
 
         # Save file using BASE_PATH from utils
-        upload_dir = os.path.join(BASE_PATH, "data/raw")
+        workspace = get_user_workspace(user_id)
+        upload_dir = workspace["raw_dir"]
         os.makedirs(upload_dir, exist_ok=True)
 
         file_path = os.path.join(upload_dir, file.filename)
@@ -311,12 +365,14 @@ async def upload_and_process(file: UploadFile = File(...)):
         # Detect schema only
                 # Detect schema (uses LLM if available, falls back to heuristic)
         schema = await schema_detector.detect_schema_from_file(csv_path, use_llm=True)
+        schema["source_file"] = relative_to_user_root(user_id, file_path)
+        save_user_schema(user_id, schema)
 
         if "error" in schema:
             return {"status": "error", "message": schema["error"]}
 
         # Ingest raw data into warehouse (creates {name}_raw table only)
-        ingest_result = await duckdb_tool.ingest_file(csv_path)
+        ingest_result = await duckdb_tool.ingest_file(csv_path, user_id=user_id)
 
         if "error" in ingest_result:
             return {"status": "error", "message": ingest_result["error"]}
@@ -394,18 +450,19 @@ async def preview_xlsx_sheet(file_path: str, sheet_name: str = None, rows: int =
 async def analyze_dataset(request: Optional[LLMAnalysisRequest] = None):
     """Use LLM to analyze current dataset"""
     request = request or LLMAnalysisRequest()
+    user_id = getattr(request, "user_id", None)
     if request.active_file:
-        active_result = await _activate_file_context(request.active_file)
+        active_result = await _activate_file_context(request.active_file, user_id=user_id)
         if "error" in active_result:
             return {"status": "error", "message": active_result["error"]}
 
-    schema = schema_detector.load_schema_cache()
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
 
     if not schema:
         return {"status": "error", "message": "No dataset loaded. Upload a file first."}
 
     # Get sample data
-    sample_data = await duckdb_tool.get_sample_data(limit=100)
+    sample_data = await duckdb_tool.get_sample_data(limit=100, user_id=user_id)
 
     # Analyze with LLM
     analysis = await llm_agent.analyze_dataset(
@@ -421,15 +478,15 @@ async def analyze_dataset(request: Optional[LLMAnalysisRequest] = None):
 
 
 @app.post("/llm/generate-dbt")
-async def generate_dbt_models():
+async def generate_dbt_models(user_id: Optional[str] = None):
     """Generate dbt models using LLM"""
-    schema = schema_detector.load_schema_cache()
+    schema = load_user_schema(user_id)
 
     if not schema:
         return {"status": "error", "message": "No dataset loaded"}
 
     # Get analysis first
-    sample_data = await duckdb_tool.get_sample_data(limit=100)
+    sample_data = await duckdb_tool.get_sample_data(limit=100, user_id=user_id)
     analysis = await llm_agent.analyze_dataset(schema, sample_data.get("data", []))
 
     # Generate dbt models
@@ -463,15 +520,15 @@ async def generate_dbt_models():
 
 
 @app.post("/llm/generate-pipeline")
-async def generate_pipeline(operations: List[str] = None):
+async def generate_pipeline(operations: List[str] = None, user_id: Optional[str] = None):
     """Generate Prefect pipeline using LLM"""
-    schema = schema_detector.load_schema_cache()
+    schema = load_user_schema(user_id)
 
     if not schema:
         return {"status": "error", "message": "No dataset loaded"}
 
     # Get analysis
-    sample_data = await duckdb_tool.get_sample_data(limit=100)
+    sample_data = await duckdb_tool.get_sample_data(limit=100, user_id=user_id)
     analysis = await llm_agent.analyze_dataset(schema, sample_data.get("data", []))
 
     # Generate pipeline
@@ -613,15 +670,68 @@ async def run_agent(request: CommandRequest):
     import traceback
     try:
         if request.active_file:
-            active_result = await _activate_file_context(request.active_file)
+            active_result = await _activate_file_context(request.active_file, user_id=request.user_id)
             if "error" in active_result:
                 return {"status": "error", "message": active_result["error"]}
-        result = await master_agent.execute(request.command)
-        return {
-            "status": "success",
-            "message": f"Command executed: {request.command}",
-            "data": result
-        }
+
+        cmd = (request.command or "").strip().lower()
+        if any(token in cmd for token in ["clean", "transform", "preprocess"]):
+            transform_result = await duckdb_tool.transform(user_id=request.user_id)
+            if "error" in transform_result:
+                return {"status": "error", "message": transform_result["error"], "data": transform_result}
+            output_file = transform_result.get("output_file")
+            files = []
+            if output_file and os.path.exists(output_file):
+                files.append(_safe_relative(get_user_workspace(request.user_id)["root"], output_file))
+            step_logs = []
+            for step in transform_result.get("cleaning_operations", []):
+                col = step.get("column", step.get("operation", "step"))
+                strategy = step.get("strategy", step.get("reason", "done"))
+                before = step.get("missing_before")
+                after = step.get("missing_after")
+                if before is not None and after is not None:
+                    step_logs.append(f"[Clean] {col}: {strategy} ({before} -> {after})")
+                else:
+                    step_logs.append(f"[Clean] {col}: {strategy}")
+            return {
+                "status": "success",
+                "message": transform_result.get("message", "Data transformed successfully"),
+                "data": {
+                    **transform_result,
+                    "files": files,
+                    "files_generated": files,
+                    "logs": step_logs,
+                }
+            }
+        if any(token in cmd for token in ["report", "dashboard", "summary"]):
+            report_message = await report_tool.generate(schema=load_user_schema(request.user_id), user_id=request.user_id)
+            if "Table" in str(report_message) and "not found" in str(report_message):
+                transform_result = await duckdb_tool.transform(user_id=request.user_id)
+                if "error" not in transform_result:
+                    report_message = await report_tool.generate(schema=load_user_schema(request.user_id), user_id=request.user_id)
+            if str(report_message).startswith("Error"):
+                return {"status": "error", "message": report_message}
+            schema = load_user_schema(request.user_id)
+            files = []
+            report_csv = schema.get("report_file")
+            report_html = schema.get("report_html_file")
+            if report_csv and os.path.exists(report_csv):
+                files.append(_safe_relative(get_user_workspace(request.user_id)["root"], report_csv))
+            if report_html and os.path.exists(report_html):
+                files.append(_safe_relative(get_user_workspace(request.user_id)["root"], report_html))
+            return {
+                "status": "success",
+                "message": report_message,
+                "data": {
+                    "status": "success",
+                    "message": report_message,
+                    "files": files,
+                    "files_generated": files,
+                    "logs": [f"[Report] {report_message}"],
+                },
+            }
+        result = await master_agent.execute(request.command, session_id=request.user_id or "default")
+        return result
     except Exception as e:
         print(f"Error in run_agent: {e}")
         traceback.print_exc()
@@ -629,9 +739,9 @@ async def run_agent(request: CommandRequest):
 
 
 @app.get("/status")
-async def get_status():
+async def get_status(user_id: Optional[str] = None):
     """Get the last execution status"""
-    schema = await duckdb_tool.get_current_schema()
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
     return {
         "status": "ready",
         "message": "System is operational",
@@ -653,12 +763,12 @@ async def execute_query(request: QueryRequest):
     """
     try:
         if request.active_file:
-            active_result = await _activate_file_context(request.active_file)
+            active_result = await _activate_file_context(request.active_file, user_id=request.user_id)
             if "error" in active_result:
                 raise HTTPException(status_code=400, detail=active_result["error"])
 
         # Get current schema
-        schema = schema_detector.load_schema_cache()
+        schema = await duckdb_tool.get_current_schema(user_id=request.user_id)
 
         if not schema:
             raise HTTPException(status_code=400, detail="No dataset loaded")
@@ -672,25 +782,22 @@ async def execute_query(request: QueryRequest):
         sql = llm_result.get("sql", "")
 
         if not sql:
-            # Fallback to pattern-based generation
-            result = await query_agent.process_query(request.question)
+            raise HTTPException(status_code=400, detail="Failed to generate SQL for the question")
         else:
             # Execute LLM-generated SQL
-            query_result = await duckdb_tool.query(sql)
+            query_result = await duckdb_tool.query(sql, user_id=request.user_id)
 
-            if "error" in query_result:
-                # Fallback to pattern-based
-                result = await query_agent.process_query(request.question)
-            else:
-                result = {
-                    "sql": sql,
-                    "columns": query_result.get("columns", []),
-                    "data": query_result.get("data", []),
-                    "execution_time": 0,
-                    "schema": schema,
-                    "explanation": llm_result.get("explanation", ""),
-                    "generated_by": "llm"
-                }
+            if query_result.get("status") == "error":
+                raise HTTPException(status_code=400, detail=query_result.get("message", "Query execution failed"))
+            result = {
+                "sql": sql,
+                "columns": query_result.get("columns", []),
+                "data": query_result.get("data", []),
+                "execution_time": 0,
+                "schema": schema,
+                "explanation": llm_result.get("explanation", ""),
+                "generated_by": "llm"
+            }
 
         return {
             "status": "success",
@@ -711,116 +818,77 @@ async def execute_query(request: QueryRequest):
 # ============ FILE ROUTES ============
 
 @app.get("/files")
-async def list_files():
-    """List all generated files"""
-    files = []
+async def list_files(user_id: Optional[str] = None):
+    """List all generated files."""
+    workspace = get_user_workspace(user_id)
+    base_workspace = get_user_workspace(None)
+    file_index: Dict[str, Dict[str, Any]] = {}
 
-    # Check for any CSV files in data/raw using BASE_PATH
-    raw_dir = os.path.join(BASE_PATH, "data/raw")
-    if os.path.exists(raw_dir):
-        for f in os.listdir(raw_dir):
-            if f.endswith(('.csv', '.json', '.xlsx', '.xls')):
-                full_path = os.path.join(raw_dir, f)
-                files.append({
-                    "name": f,
-                    "path": f"data/raw/{f}",
-                    "type": f.split('.')[-1],
-                    "category": "raw_data",
-                    "size": os.path.getsize(full_path),
-                    "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-                })
+    def add_file(full_path: str, relative_path: str, category: str):
+        if not os.path.exists(full_path):
+            return
+        ext = os.path.splitext(full_path)[1].lstrip(".").lower() or "unknown"
+        modified_ts = os.path.getmtime(full_path)
+        existing = file_index.get(relative_path)
+        if existing and datetime.fromisoformat(existing["modified"]).timestamp() >= modified_ts:
+            return
+        file_index[relative_path] = {
+            "name": os.path.basename(full_path),
+            "path": relative_path.replace("\\", "/"),
+            "type": ext,
+            "category": category,
+            "size": os.path.getsize(full_path),
+            "modified": datetime.fromtimestamp(modified_ts).isoformat(),
+        }
 
-    # Check for any CSV files in data/clean
-    clean_dir = os.path.join(BASE_PATH, "data/clean")
-    if os.path.exists(clean_dir):
-        for f in os.listdir(clean_dir):
-            if f.endswith('.csv'):
-                full_path = os.path.join(clean_dir, f)
-                files.append({
-                    "name": f,
-                    "path": f"data/clean/{f}",
-                    "type": "csv",
-                    "category": "clean_data",
-                    "size": os.path.getsize(full_path),
-                    "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-                })
+    def scan_dir(disk_dir: str, logical_prefix: str, category: str, allowed_ext: set[str]):
+        if not os.path.exists(disk_dir):
+            return
+        for name in os.listdir(disk_dir):
+            full_path = os.path.join(disk_dir, name)
+            if not os.path.isfile(full_path):
+                continue
+            ext = os.path.splitext(name)[1].lower()
+            if allowed_ext and ext not in allowed_ext:
+                continue
+            add_file(full_path, f"{logical_prefix}/{name}", category)
 
-    # ✅ FIX: Scan ALL files in pipelines directory (not just hardcoded names)
-    pipelines_dir = os.path.join(BASE_PATH, "pipelines")
-    if os.path.exists(pipelines_dir):
-        for f in os.listdir(pipelines_dir):
-            if f.endswith('.py'):
-                full_path = os.path.join(pipelines_dir, f)
-                files.append({
-                    "name": f,
-                    "path": f"pipelines/{f}",
-                    "type": "py",
-                    "category": "pipeline",
-                    "size": os.path.getsize(full_path),
-                    "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-                })
+    scan_dir(workspace["raw_dir"], "data/raw", "raw_data", {".csv", ".json", ".xlsx", ".xls", ".xlsm"})
+    scan_dir(workspace["clean_dir"], "data/clean", "clean_data", {".csv", ".parquet", ".json"})
+    scan_dir(workspace["reports_dir"], "reports", "report", {".csv", ".html", ".json"})
+    scan_dir(os.path.join(workspace["root"], "pipelines"), "pipelines", "pipeline", {".py", ".sql", ".yml", ".yaml", ".json"})
 
-    # ✅ FIX: Scan ALL files in reports directory (not just hardcoded names)
-    reports_dir = os.path.join(BASE_PATH, "reports")
-    if os.path.exists(reports_dir):
-        for f in os.listdir(reports_dir):
-            if f.endswith('.csv'):
-                full_path = os.path.join(reports_dir, f)
-                files.append({
-                    "name": f,
-                    "path": f"reports/{f}",
-                    "type": "csv",
-                    "category": "report",
-                    "size": os.path.getsize(full_path),
-                    "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-                })
+    if workspace["root"] != base_workspace["root"]:
+        scan_dir(base_workspace["raw_dir"], "data/raw", "raw_data", {".csv", ".json", ".xlsx", ".xls", ".xlsm"})
+        scan_dir(base_workspace["clean_dir"], "data/clean", "clean_data", {".csv", ".parquet", ".json"})
+        scan_dir(base_workspace["reports_dir"], "reports", "report", {".csv", ".html", ".json"})
+        scan_dir(os.path.join(base_workspace["root"], "pipelines"), "pipelines", "pipeline", {".py", ".sql", ".yml", ".yaml", ".json"})
 
-    # Add warehouse files
-    warehouse_files = [
-        ("warehouse/warehouse.duckdb", "warehouse", "duckdb"),
-        ("warehouse/schema_cache.json", "schema", "json"),
-    ]
+    add_file(workspace["warehouse_db"], "warehouse/warehouse.duckdb", "warehouse")
+    add_file(workspace["schema_cache"], "configs/schema_cache.json", "schema")
+    add_file(os.path.join(workspace["configs_dir"], "transformation_log.json"), "configs/transformation_log.json", "schema")
+    if workspace["root"] != base_workspace["root"]:
+        add_file(base_workspace["warehouse_db"], "warehouse/warehouse.duckdb", "warehouse")
+        add_file(base_workspace["schema_cache"], "configs/schema_cache.json", "schema")
 
-    # Add dbt models using DBT_DIR from utils
     dbt_models_dir = os.path.join(DBT_DIR, "models")
     if os.path.exists(dbt_models_dir):
-        for root, dirs, filenames in os.walk(dbt_models_dir):
-            for f in filenames:
-                if f.endswith('.sql') or f.endswith('.yml'):
-                    rel_path = os.path.join(root, f).replace(BASE_PATH + '/', '')
-                    full_path = os.path.join(root, f)
-                    files.append({
-                        "name": f,
-                        "path": rel_path,
-                        "type": f.split('.')[-1],
-                        "category": "dbt_model",
-                        "size": os.path.getsize(full_path),
-                        "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-                    })
+        for root, _, filenames in os.walk(dbt_models_dir):
+            for name in filenames:
+                if not name.endswith((".sql", ".yml", ".yaml")):
+                    continue
+                full_path = os.path.join(root, name)
+                rel_path = _safe_relative(BASE_PATH, full_path)
+                add_file(full_path, rel_path, "dbt_model")
 
-    for path, category, file_type in warehouse_files:
-        full_path = os.path.join(BASE_PATH, path)
-        if os.path.exists(full_path):
-            files.append({
-                "name": os.path.basename(path),
-                "path": path,
-                "type": file_type,
-                "category": category,
-                "size": os.path.getsize(full_path),
-                "modified": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat()
-            })
-
+    files = sorted(file_index.values(), key=lambda x: x["modified"], reverse=True)
     return {"files": files, "count": len(files)}
-
-
 @app.get("/files/{file_path:path}")
-async def get_file(file_path: str):
+async def get_file(file_path: str, user_id: Optional[str] = None):
     """Get a specific file by path (safe - prevents path traversal)"""
-    # Canonicalize and ensure the resolved path is within BASE_PATH
-    full_path = os.path.realpath(os.path.join(BASE_PATH, file_path))
-    if not full_path.startswith(os.path.realpath(BASE_PATH) + os.sep):
-        raise HTTPException(status_code=403, detail="Access denied: path outside project directory")
-    if not os.path.exists(full_path):
+    try:
+        full_path = _resolve_workspace_file_path(user_id, file_path)
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
 
     size = os.path.getsize(full_path)
@@ -868,7 +936,7 @@ async def execute_pipeline(request: CommandRequest):
 
 
 @app.post("/pipelines/generate")
-async def generate_pipeline_endpoint(file_path: str = None):
+async def generate_pipeline_endpoint(file_path: str = None, user_id: Optional[str] = None):
     """Generate a pipeline for the current or specified data file"""
     from agent.pipeline_generator import PipelineGenerator
 
@@ -877,7 +945,7 @@ async def generate_pipeline_endpoint(file_path: str = None):
     if file_path:
         result = await generator.generate_from_file(file_path)
     else:
-        schema = schema_detector.load_schema_cache()
+        schema = load_user_schema(user_id)
         if schema:
             result = {
                 "status": "success",
@@ -893,9 +961,10 @@ async def generate_pipeline_endpoint(file_path: str = None):
 # ============ DASHBOARD ROUTES ============
 
 @app.get("/dashboard/stats")
-async def get_dashboard_stats():
+async def get_dashboard_stats(user_id: Optional[str] = None):
     """Get dashboard statistics"""
-    schema = schema_detector.load_schema_cache()
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
+    workspace = get_user_workspace(user_id)
 
     # LLM health check (sync method - no await)
     llm_health = llm_agent.check_health() if hasattr(llm_agent, 'check_health') else {"available": False}
@@ -922,9 +991,9 @@ async def get_dashboard_stats():
         stats["success_rate"] = round(success_count / len(master_agent.pipelines) * 100, 1)
 
     # Get warehouse stats using WAREHOUSE_DB_PATH from utils
-    if os.path.exists(WAREHOUSE_DB_PATH):
+    if os.path.exists(workspace["warehouse_db"]):
         try:
-            con = duckdb.connect(WAREHOUSE_DB_PATH, read_only=True)
+            con = duckdb.connect(workspace["warehouse_db"], read_only=True)
             tables = con.execute("SHOW TABLES").fetchall()
             stats["tables"] = len(tables)
 
@@ -943,16 +1012,17 @@ async def get_dashboard_stats():
             pass
 
     # Count reports using REPORTS_DIR from utils
-    if os.path.exists(REPORTS_DIR):
-        stats["reports"] = len([f for f in os.listdir(REPORTS_DIR) if f.endswith('.csv')])
+    if os.path.exists(workspace["reports_dir"]):
+        stats["reports"] = len([f for f in os.listdir(workspace["reports_dir"]) if f.endswith('.csv')])
 
     return stats
 
 
 @app.get("/dashboard/charts")
-async def get_chart_data():
+async def get_chart_data(user_id: Optional[str] = None):
     """Get data for dashboard charts - Dynamic based on schema"""
-    schema = schema_detector.load_schema_cache()
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
+    workspace = get_user_workspace(user_id)
 
     # Build pipeline_runs from actual pipeline history
     pipeline_runs = []
@@ -990,7 +1060,7 @@ async def get_chart_data():
         "trend_chart": []
     }
 
-    if not schema or not os.path.exists(WAREHOUSE_DB_PATH):
+    if not schema or not os.path.exists(workspace["warehouse_db"]):
         return charts
 
     table_name = schema.get("table_name", "data_clean")
@@ -1025,7 +1095,7 @@ async def get_chart_data():
             date_cols.append(col_name)
 
     try:
-        con = duckdb.connect(WAREHOUSE_DB_PATH, read_only=True)
+        con = duckdb.connect(workspace["warehouse_db"], read_only=True)
 
         # Primary chart: Group by category with aggregation (using quote_identifier)
         if category_cols and numeric_cols:
@@ -1091,12 +1161,13 @@ async def get_chart_data():
 # ============ WAREHOUSE ROUTES ============
 
 @app.get("/warehouse/tables")
-async def list_warehouse_tables():
+async def list_warehouse_tables(user_id: Optional[str] = None):
     """List all tables in the warehouse"""
     tables = []
-    if os.path.exists(WAREHOUSE_DB_PATH):
+    workspace = get_user_workspace(user_id)
+    if os.path.exists(workspace["warehouse_db"]):
         try:
-            con = duckdb.connect(WAREHOUSE_DB_PATH, read_only=True)
+            con = duckdb.connect(workspace["warehouse_db"], read_only=True)
             table_list = con.execute("SHOW TABLES").fetchall()
 
             for table in table_list:
@@ -1124,16 +1195,17 @@ async def list_warehouse_tables():
 
 
 @app.get("/warehouse/tables/{table_name}")
-async def get_table_data(table_name: str, limit: int = 100):
+async def get_table_data(table_name: str, limit: int = 100, user_id: Optional[str] = None):
     """Get data from a specific table"""
     if not validate_identifier(table_name):
         raise HTTPException(status_code=400, detail=f"Invalid table name: {table_name!r}")
 
-    if not os.path.exists(WAREHOUSE_DB_PATH):
+    workspace = get_user_workspace(user_id)
+    if not os.path.exists(workspace["warehouse_db"]):
         raise HTTPException(status_code=404, detail="Warehouse not found")
 
     try:
-        con = duckdb.connect(WAREHOUSE_DB_PATH, read_only=True)
+        con = duckdb.connect(workspace["warehouse_db"], read_only=True)
 
         # Get columns using safe identifier
         quoted_table = quote_identifier(table_name)
@@ -1163,29 +1235,223 @@ async def get_table_data(table_name: str, limit: int = 100):
 
 
 @app.get("/warehouse/sample")
-async def get_warehouse_sample(limit: int = 20):
+async def get_warehouse_sample(limit: int = 20, user_id: Optional[str] = None):
     """Get sample data from the current table"""
-    result = await duckdb_tool.get_sample_data(limit=limit)
+    result = await duckdb_tool.get_sample_data(limit=limit, user_id=user_id)
     return result
 
+
+@app.get("/report/view")
+async def view_report(
+    user_id: Optional[str] = None,
+    limit: int = 200,
+    filter_column: Optional[str] = None,
+    filter_value: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: str = "asc",
+    bar_category: Optional[str] = None,
+    bar_metric: Optional[str] = None,
+):
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
+    table_name = schema.get("table_name", "data_clean")
+    if not validate_identifier(table_name):
+        raise HTTPException(status_code=400, detail="Invalid table name")
+
+    workspace = get_user_workspace(user_id)
+    if not os.path.exists(workspace["warehouse_db"]):
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+
+    con = duckdb.connect(workspace["warehouse_db"], read_only=True)
+    try:
+        tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
+        selected_table = table_name
+        if selected_table not in tables:
+            raw_candidate = schema.get("raw_table", "")
+            if raw_candidate in tables:
+                selected_table = raw_candidate
+            else:
+                con.close()
+                transform_result = await duckdb_tool.transform(user_id=user_id)
+                if "error" in transform_result:
+                    raise HTTPException(status_code=404, detail=f"No reportable table found: {table_name}")
+                schema = await duckdb_tool.get_current_schema(user_id=user_id)
+                selected_table = schema.get("table_name", table_name)
+                con = duckdb.connect(workspace["warehouse_db"], read_only=True)
+                tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
+                if selected_table not in tables:
+                    if raw_candidate in tables:
+                        selected_table = raw_candidate
+                    else:
+                        raise HTTPException(status_code=404, detail=f"No reportable table found: {selected_table}")
+
+        quoted_table = quote_identifier(selected_table)
+        df = con.execute(f"SELECT * FROM {quoted_table}").fetchdf()
+    finally:
+        con.close()
+
+    if filter_column and filter_value and filter_column in df.columns:
+        series = df[filter_column]
+        numeric_series = pd.to_numeric(series, errors="coerce")
+        val = str(filter_value).strip()
+        m = re.match(r"^\s*(>=|<=|>|<|=)?\s*(-?\d+(?:\.\d+)?)\s*$", val)
+        if m and numeric_series.notna().mean() > 0.8:
+            op = m.group(1) or "="
+            num = float(m.group(2))
+            if op == ">":
+                df = df[numeric_series > num]
+            elif op == "<":
+                df = df[numeric_series < num]
+            elif op == ">=":
+                df = df[numeric_series >= num]
+            elif op == "<=":
+                df = df[numeric_series <= num]
+            else:
+                df = df[numeric_series == num]
+        else:
+            df = df[series.astype(str).str.contains(val, case=False, na=False)]
+
+    if sort_by and sort_by in df.columns:
+        df = df.sort_values(by=sort_by, ascending=sort_dir.lower() != "desc")
+
+    numeric_cols = list(df.select_dtypes(include=["number"]).columns)
+    non_numeric_cols = [c for c in df.columns if c not in numeric_cols]
+
+    bar = []
+    pie = []
+    line = []
+    histogram = []
+    heatmap = []
+
+    selected_cat = bar_category if bar_category in df.columns else (non_numeric_cols[0] if non_numeric_cols else (df.columns[0] if len(df.columns) else None))
+    selected_metric = bar_metric if bar_metric in numeric_cols or bar_metric == "__count__" else (numeric_cols[0] if numeric_cols else "__count__")
+
+    if selected_cat:
+        if selected_metric == "__count__":
+            grouped = df.groupby(selected_cat, dropna=False).size().reset_index(name="__value__").sort_values("__value__", ascending=False).head(12)
+            bar = [{"category": str(r[selected_cat]), "value": float(r["__value__"])} for _, r in grouped.iterrows()]
+            pie = [{"name": str(r[selected_cat]), "value": float(r["__value__"])} for _, r in grouped.head(6).iterrows()]
+        elif selected_metric in numeric_cols:
+            grouped = df.groupby(selected_cat, dropna=False)[selected_metric].sum().reset_index().sort_values(selected_metric, ascending=False).head(12)
+            bar = [{"category": str(r[selected_cat]), "value": float(r[selected_metric])} for _, r in grouped.iterrows()]
+            pie = [{"name": str(r[selected_cat]), "value": float(r[selected_metric])} for _, r in grouped.head(6).iterrows()]
+
+    if numeric_cols:
+        num = numeric_cols[0]
+        hist = pd.cut(df[num], bins=12).value_counts(sort=False)
+        histogram = [{"bucket": str(k), "count": int(v)} for k, v in hist.items()]
+        corr = df[numeric_cols].corr().fillna(0)
+        for row in corr.index:
+            for col in corr.columns:
+                heatmap.append({"x": str(col), "y": str(row), "value": float(round(corr.loc[row, col], 4))})
+
+    datetime_candidates = []
+    for col in df.columns:
+        non_null = df[col].dropna()
+        if non_null.empty:
+            continue
+        as_str = non_null.astype(str).str.strip().head(min(200, len(non_null)))
+        is_date_like = as_str.str.contains(
+            r"(?:\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}:\d{2}|[A-Za-z]{3,9}\s+\d{1,2})",
+            regex=True,
+        ).mean() >= 0.6
+        if not is_date_like:
+            continue
+        try:
+            parsed = pd.to_datetime(df[col], errors="coerce", format="mixed")
+        except TypeError:
+            parsed = pd.to_datetime(df[col], errors="coerce")
+        if parsed.notna().mean() > 0.7:
+            datetime_candidates.append(col)
+            df[col] = parsed
+    if datetime_candidates and numeric_cols:
+        dt_col = datetime_candidates[0]
+        num = numeric_cols[0]
+        trend_df = df.dropna(subset=[dt_col]).copy()
+        if not trend_df.empty:
+            trend_df["_period"] = trend_df[dt_col].dt.to_period("M").astype(str)
+            grouped = trend_df.groupby("_period")[num].sum().reset_index().sort_values("_period").tail(12)
+            line = [{"period": str(r["_period"]), "value": float(r[num])} for _, r in grouped.iterrows()]
+
+    return {
+        "status": "success",
+        "table": selected_table,
+        "columns": [{"name": c, "type": str(df[c].dtype)} for c in df.columns],
+        "rows": df.head(limit).fillna("").to_dict("records"),
+        "total_rows": int(len(df)),
+        "report_file": schema.get("report_file"),
+        "report_html_file": schema.get("report_html_file"),
+        "charts": {
+            "bar": bar,
+            "line": line,
+            "pie": pie,
+            "histogram": histogram,
+            "heatmap": heatmap,
+        },
+        "bar_options": {
+            "selected_category": selected_cat,
+            "selected_metric": selected_metric,
+            "category_candidates": [str(c) for c in df.columns],
+            "metric_candidates": ["__count__"] + [str(c) for c in numeric_cols],
+        },
+    }
+
+
+@app.get("/report/drilldown")
+async def report_drilldown(
+    user_id: Optional[str] = None,
+    group_by: str = "",
+    group_value: str = "",
+    limit: int = 100,
+):
+    if not group_by:
+        raise HTTPException(status_code=400, detail="group_by is required")
+    schema = await duckdb_tool.get_current_schema(user_id=user_id)
+    table_name = schema.get("table_name", "data_clean")
+    if not validate_identifier(table_name):
+        raise HTTPException(status_code=400, detail="Invalid table name")
+
+    workspace = get_user_workspace(user_id)
+    if not os.path.exists(workspace["warehouse_db"]):
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+
+    con = duckdb.connect(workspace["warehouse_db"], read_only=True)
+    quoted_table = quote_identifier(table_name)
+    try:
+        df = con.execute(f"SELECT * FROM {quoted_table}").fetchdf()
+    finally:
+        con.close()
+
+    if group_by not in df.columns:
+        raise HTTPException(status_code=400, detail="Invalid group_by column")
+
+    out = df[df[group_by].astype(str) == str(group_value)].head(limit)
+    return {"status": "success", "rows": out.fillna("").to_dict("records"), "count": int(len(out))}
+
 @app.get("/download/{file_path:path}")
-async def download_file(file_path: str):
+async def download_file(file_path: str, user_id: Optional[str] = None):
     """Download a file with proper Content-Disposition header"""
-    from fastapi.responses import FileResponse
-    
-    full_path = os.path.realpath(os.path.join(BASE_PATH, file_path))
-    if not full_path.startswith(os.path.realpath(BASE_PATH) + os.sep):
-        raise HTTPException(status_code=403, detail="Access denied: path outside project directory")
-    if not os.path.exists(full_path):
+
+    try:
+        full_path = _resolve_workspace_file_path(user_id, file_path)
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
-    
+
     filename = os.path.basename(full_path)
+    ext = os.path.splitext(filename)[1].lower()
+    media_type = "application/octet-stream"
+    if ext == ".html":
+        media_type = "text/html; charset=utf-8"
+    elif ext == ".json":
+        media_type = "application/json"
+    elif ext == ".csv":
+        media_type = "text/csv; charset=utf-8"
     return FileResponse(
         path=full_path,
         filename=filename,
-        media_type="application/octet-stream"
+        media_type=media_type
     )
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=3001)
+

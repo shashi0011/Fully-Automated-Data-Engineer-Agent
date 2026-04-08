@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserIdFromRequest(request);
     const formData = await request.formData();
+    if (userId) {
+      formData.set('user_id', userId);
+    }
+
     const response = await fetch(`${BACKEND_URL}/upload-and-process`, {
       method: 'POST',
       body: formData
@@ -27,9 +33,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${BACKEND_URL}/files`);
+    const userId = getUserIdFromRequest(request);
+    const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/files${suffix}`);
     const text = await response.text();
     try {
       const data = JSON.parse(text);

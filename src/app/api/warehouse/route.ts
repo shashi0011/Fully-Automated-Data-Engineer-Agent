@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 export async function GET(request: NextRequest) {
   try {
+    const userId = getUserIdFromRequest(request);
     const { searchParams } = new URL(request.url);
     const tableName = searchParams.get('table');
 
     if (tableName) {
       const limit = searchParams.get('limit') || '100';
-      const response = await fetch(`${BACKEND_URL}/warehouse/tables/${tableName}?limit=${limit}`, {
+      const suffix = userId ? `&user_id=${encodeURIComponent(userId)}` : '';
+      const response = await fetch(`${BACKEND_URL}/warehouse/tables/${tableName}?limit=${limit}${suffix}`, {
         signal: AbortSignal.timeout(15000),
       });
       const text = await response.text();
@@ -24,7 +27,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(data);
     }
 
-    const response = await fetch(`${BACKEND_URL}/warehouse/tables`, {
+    const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/warehouse/tables${suffix}`, {
       signal: AbortSignal.timeout(15000),
     });
     const text = await response.text();

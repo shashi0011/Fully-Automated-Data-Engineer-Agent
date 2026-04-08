@@ -86,7 +86,7 @@ export function Sidebar() {
             <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
               <Zap className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold">DataForge</span>
+            <span className="font-bold">Omnix</span>
           </Link>
         )}
         {collapsed && (

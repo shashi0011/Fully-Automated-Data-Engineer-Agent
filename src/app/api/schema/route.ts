@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromRequest } from '@/lib/user-context';
 
 const BACKEND_PORT = 3001;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${BACKEND_URL}/schema`);
+    const userId = getUserIdFromRequest(request);
+    const suffix = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/schema${suffix}`);
     const text = await response.text();
     let data: any;
     try {
@@ -23,8 +26,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = getUserIdFromRequest(request);
     const body = await request.json();
-    const response = await fetch(`${BACKEND_URL}/schema/detect?file_path=${encodeURIComponent(body.file_path)}`, {
+    const suffix = userId ? `&user_id=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${BACKEND_URL}/schema/detect?file_path=${encodeURIComponent(body.file_path)}${suffix}`, {
       method: 'POST'
     });
     const text = await response.text();

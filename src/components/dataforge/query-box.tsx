@@ -60,7 +60,16 @@ export function QueryBox({ onQuery, isLoading = false, activeFileName = null }: 
     setLoading(true);
     try {
       const res = await onQuery(question.trim());
-      setResult(res);
+      const safeResult: QueryResult = {
+        sql: typeof res?.sql === "string" ? res.sql : "",
+        columns: Array.isArray(res?.columns) ? res.columns : [],
+        data: Array.isArray(res?.data) ? res.data : [],
+        row_count: typeof res?.row_count === "number"
+          ? res.row_count
+          : (Array.isArray(res?.data) ? res.data.length : 0),
+        execution_time: typeof res?.execution_time === "number" ? res.execution_time : undefined,
+      };
+      setResult(safeResult);
     } catch (error) {
       console.error("Query error:", error);
     } finally {

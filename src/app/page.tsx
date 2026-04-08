@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1102,7 +1102,7 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   const features = [
-    { icon: Bot, title: "AI-Powered Agent", description: "LLM-powered intelligent analysis, dbt generation, and NL→SQL conversion", color: "text-violet-500", bgColor: "bg-violet-500/10" },
+    { icon: Bot, title: "AI-Powered Agent", description: "LLM-powered intelligent analysis, dbt generation, and NL to SQL conversion", color: "text-violet-500", bgColor: "bg-violet-500/10" },
     { icon: GitBranch, title: "Automated Pipelines", description: "Generate, execute, and monitor ETL pipelines with intelligent orchestration", color: "text-blue-500", bgColor: "bg-blue-500/10" },
     { icon: Database, title: "Data Warehouse", description: "Built-in DuckDB warehouse for fast analytics and data storage", color: "text-green-500", bgColor: "bg-green-500/10" },
     { icon: Cloud, title: "Airbyte Integration", description: "Connect to 300+ data sources with real Airbyte integration", color: "text-cyan-500", bgColor: "bg-cyan-500/10" },
@@ -1118,8 +1118,13 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
+    <div className="relative min-h-screen overflow-x-clip bg-background">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 -left-24 h-96 w-96 rounded-full bg-violet-500/15 blur-3xl animate-pulse" />
+        <div className="absolute top-40 -right-28 h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+      </div>
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/70 backdrop-blur-xl border-b shadow-[0_10px_35px_rgba(0,0,0,0.25)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
@@ -1157,7 +1162,7 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         )}
       </nav>
 
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-4xl mx-auto">
             <div className="flex items-center justify-center gap-2 mb-4">
@@ -1168,10 +1173,10 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
               Build Data Pipelines with{" "}
               <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">AI</span>{" "}
-              — No Coding Required
+              No Coding Required
             </h1>
             <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Upload <strong>any dataset</strong> - sales, news, medical, finance, or custom data. 
+              Upload <strong>any dataset</strong> - sales, news, medical, finance, or custom data.
               AI automatically detects schema, generates dbt models, and creates production-ready pipelines.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -1183,9 +1188,13 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
               </Button>
             </div>
           </div>
-          <div className="mt-16 relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-600/20 to-cyan-500/20 blur-3xl rounded-3xl" />
-            <Card className="relative bg-background/50 backdrop-blur border-2 shadow-2xl">
+          <div className="mt-16 relative [perspective:1400px]">
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-600/25 to-cyan-500/25 blur-3xl rounded-3xl" />
+            <div className="absolute -inset-2 rounded-3xl bg-gradient-to-r from-violet-600/20 via-cyan-500/15 to-blue-500/20 blur-2xl" />
+            <Card
+              className="relative bg-background/55 backdrop-blur-xl border-2 shadow-[0_30px_80px_rgba(0,0,0,0.45)] transition-transform duration-500 hover:-translate-y-1"
+              style={{ transform: "rotateX(5deg) rotateY(-3deg)" }}
+            >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-cyan-500 rounded-lg flex items-center justify-center">
@@ -1211,7 +1220,7 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
       </section>
 
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+      <section id="features" className="relative py-20 px-4 sm:px-6 lg:px-8 bg-muted/20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Powerful Features</h2>
@@ -1219,7 +1228,11 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, index) => (
-              <Card key={index} className="hover:shadow-lg transition-shadow">
+              <Card
+                key={index}
+                className="group relative overflow-hidden border border-border/60 bg-background/60 backdrop-blur-sm shadow-[0_14px_34px_rgba(0,0,0,0.24)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_25px_45px_rgba(0,0,0,0.32)]"
+              >
+                <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.18),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(6,182,212,0.18),transparent_45%)]" />
                 <CardContent className="p-6">
                   <div className={`w-12 h-12 rounded-lg ${feature.bgColor} flex items-center justify-center mb-4`}>
                     <feature.icon className={`h-6 w-6 ${feature.color}`} />
@@ -1233,7 +1246,7 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
       </section>
 
-      <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="how-it-works" className="relative py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">How It Works</h2>
@@ -1241,7 +1254,7 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
           </div>
           <div className="grid gap-8 md:grid-cols-4">
             {steps.map((step, index) => (
-              <div key={index} className="relative">
+              <div key={index} className="relative rounded-xl border border-border/50 bg-background/50 backdrop-blur-sm p-4 shadow-[0_12px_28px_rgba(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-1">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center text-white font-bold">{step.step}</div>
                   {index < steps.length - 1 && (<div className="hidden md:block flex-1 h-0.5 bg-gradient-to-r from-violet-600 to-cyan-500" />)}
@@ -1254,14 +1267,14 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
       </section>
 
-      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+      <section id="pricing" className="relative py-20 px-4 sm:px-6 lg:px-8 bg-muted/20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Simple, Transparent <span className="bg-gradient-to-r from-violet-600 to-cyan-500 bg-clip-text text-transparent">Pricing</span></h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">Choose the plan that fits your data needs. Start free and scale as you grow.</p>
           </div>
           <div className="grid gap-8 md:grid-cols-3 items-start">
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="bg-background/60 backdrop-blur-sm hover:shadow-[0_24px_50px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-xl">Free</CardTitle>
                 <CardDescription>For individuals exploring data</CardDescription>
@@ -1273,7 +1286,7 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
                 <Button variant="outline" className="w-full" onClick={() => setAuthDialogOpen(true)}>Get Started</Button>
               </CardContent>
             </Card>
-            <Card className="relative border-2 border-violet-500 shadow-xl hover:shadow-2xl transition-shadow md:scale-105">
+            <Card className="relative border-2 border-violet-500 bg-background/70 backdrop-blur-sm shadow-[0_25px_60px_rgba(76,29,149,0.38)] hover:shadow-[0_35px_75px_rgba(6,182,212,0.32)] transition-all duration-300 md:scale-105 hover:-translate-y-1">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2"><Badge className="bg-gradient-to-r from-violet-600 to-cyan-500 text-white px-4 py-1 text-xs font-semibold"><Sparkles className="h-3 w-3 mr-1" />MOST POPULAR</Badge></div>
               <CardHeader className="text-center pb-2 pt-6">
                 <CardTitle className="text-xl">Pro</CardTitle>
@@ -1282,11 +1295,11 @@ function LandingPage({ onGetStarted }: { onGetStarted: () => void }) {
               </CardHeader>
               <CardContent className="space-y-6">
                 <Separator />
-                <ul className="space-y-3">{["Unlimited datasets","AI-powered analysis (LLM)","Auto dbt model generation","NL→SQL query","10GB storage","Priority support","Airbyte connections (up to 5)"].map((feature) => (<li key={feature} className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-violet-500 shrink-0 mt-0.5" /><span className="text-sm">{feature}</span></li>))}</ul>
+                <ul className="space-y-3">{["Unlimited datasets","AI-powered analysis (LLM)","Auto dbt model generation","NL to SQL query","10GB storage","Priority support","Airbyte connections (up to 5)"].map((feature) => (<li key={feature} className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-violet-500 shrink-0 mt-0.5" /><span className="text-sm">{feature}</span></li>))}</ul>
                 <Button className="w-full bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-700 hover:to-cyan-600" onClick={() => setAuthDialogOpen(true)}>Start Free Trial <ArrowRight className="ml-2 h-4 w-4" /></Button>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-lg transition-shadow">
+            <Card className="bg-background/60 backdrop-blur-sm hover:shadow-[0_24px_50px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="text-center pb-2">
                 <CardTitle className="text-xl">Enterprise</CardTitle>
                 <CardDescription>For organizations with custom needs</CardDescription>
@@ -1579,6 +1592,7 @@ export default function OmnixApp() {
   const [llmLoading, setLlmLoading] = useState(false);
   const [dbtModels, setDbtModels] = useState<Array<{ path: string; content: string; description: string }> | null>(null);
   const [dbtLoading, setDbtLoading] = useState(false);
+  const [redirectToAgentAfterUpload, setRedirectToAgentAfterUpload] = useState(false);
 
   useEffect(() => {
     if (currentView === "app") { fetchFiles(); fetchStats(); fetchChartData(); fetchSchema(); }
@@ -1669,15 +1683,22 @@ export default function OmnixApp() {
       const data = await response.json();
       const fetchedFiles = data.files || [];
       setFiles(fetchedFiles);
-      // Auto-select first raw_data file if no file selected
-      if (!selectedFile) {
-        const rawFiles = fetchedFiles.filter((f: FileItem) => f.category === "raw_data");
-        if (rawFiles.length > 0) {
-          await handleSelectFile(rawFiles[rawFiles.length - 1]);
-        }
-      }
+      // Keep active-file selection user-driven to avoid loading stale/old datasets automatically.
     } catch (error) {
       console.error("Failed to fetch files:", error);
+    }
+  };
+
+  const handleUploadFlow = async (uploadResult?: any) => {
+    clearWorkspaceContext();
+    await fetchFiles();
+    await fetchSchema();
+    await fetchStats();
+    await fetchChartData();
+    await activateUploadedFile(uploadResult);
+    if (redirectToAgentAfterUpload) {
+      setActiveTab("agent");
+      setRedirectToAgentAfterUpload(false);
     }
   };
 
@@ -1900,75 +1921,75 @@ export default function OmnixApp() {
                 <>
                   <div className="flex items-center justify-between">
                     <div>
-                      <h1 className="text-2xl font-bold">Welcome back! 👋</h1>
-                      <p className="text-muted-foreground">
-                        {selectedFile ? `Working with ${selectedFile.name}` : schema ? `Working with ${schema.dataset_type} dataset` : 'Upload a dataset to get started'}
-                      </p>
+                      <h1 className="text-2xl font-bold">Omnix Overview</h1>
+                      <p className="text-muted-foreground">Ingest, clean, transform, analyze, and report from one workspace with AI-assisted workflows.</p>
                     </div>
                   </div>
 
-                  {!schema ? (
-                    <Card className="border-dashed">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5" />Get Started</CardTitle>
-                        <CardDescription>Upload a CSV, JSON, or Excel file, or try a sample dataset</CardDescription>
+                  <Card className="border-dashed">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-violet-500" />Getting Started</CardTitle>
+                      <CardDescription>Choose a guided action and jump directly to the right module.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      <Button onClick={() => { setRedirectToAgentAfterUpload(true); setActiveTab("upload"); }}>
+                        <Play className="h-4 w-4 mr-2" />
+                        Build Your First Pipeline
+                      </Button>
+                      <Button variant="outline" onClick={() => setActiveTab("upload")}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload and Explore Data
+                      </Button>
+                      <Button variant="outline" onClick={() => setActiveTab("query")}>
+                        <Search className="h-4 w-4 mr-2" />
+                        Ask Your First Query
+                      </Button>
+                      <Button variant="outline" onClick={() => setActiveTab("reports")}>
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        Open Reports Module
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Card className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setActiveTab("upload")}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2"><Upload className="h-4 w-4 text-violet-500" />Data Ingestion</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <FileUploader onUploadComplete={async (uploadResult) => {
-                          clearWorkspaceContext();
-                          await fetchFiles();
-                          await fetchSchema();
-                          await fetchStats();
-                          await fetchChartData();
-                          await activateUploadedFile(uploadResult);
-                        }} />
-                        <div className="flex items-center gap-2"><Separator className="flex-1" /><span className="text-sm text-muted-foreground">or try sample data</span><Separator className="flex-1" /></div>
-                        {/* ✅ FIX: Hide samples when file is uploaded */}
-                        {!selectedFile && (
-                          <SampleDatasets onSelect={async (name: string) => {
-                            const path = name.includes("/") ? toRelativePath(name) : `data/raw/${name}`;
-                            await handleSelectFile({ name: path.split("/").pop() || name, path, type: "csv", category: "raw_data", size: 0 }, true);
-                            await fetchSchema();
-                            await fetchStats();
-                            await fetchChartData();
-                          }} />
-                        )}
-                      </CardContent>
+                      <CardContent className="text-sm text-muted-foreground">Upload CSV/JSON/XLSX and set active file context for all modules.</CardContent>
                     </Card>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <Button onClick={handleLLMAnalysis} disabled={llmLoading}>{llmLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bot className="h-4 w-4 mr-2" />}Analyze with AI</Button>
-                        <Button onClick={handleGenerateDBT} disabled={dbtLoading} variant="outline">{dbtLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Code className="h-4 w-4 mr-2" />}Generate dbt Models</Button>
-                      </div>
-                      <CommandBox onExecute={handleExecuteCommand} isLoading={isLoading} />
-                      {executionResult && (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">{executionResult.status === "success" ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <X className="h-5 w-5 text-red-500" />}Execution Result</CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="flex items-center gap-4 text-sm">
-                              <Badge variant={executionResult.status === "success" ? "default" : "destructive"}>{executionResult.status}</Badge>
-                              {executionResult.duration && (<span className="text-muted-foreground">Completed in {executionResult.duration.toFixed(2)}s</span>)}
-                            </div>
-                            {executionResult.logs && executionResult.logs.length > 0 && (
-                              <div className="bg-muted rounded-lg p-4">
-                                <p className="text-sm font-medium mb-2">Execution Logs:</p>
-                                <div className="space-y-1 max-h-40 overflow-y-auto">{executionResult.logs.map((log, i) => (<p key={i} className="text-sm text-muted-foreground font-mono">{log}</p>))}</div>
-                              </div>
-                            )}
-                            {executionResult.files && executionResult.files.length > 0 && (
-                              <div>
-                                <p className="text-sm font-medium mb-2">Generated Files:</p>
-                                <div className="grid gap-2 md:grid-cols-2">{executionResult.files.map((file, i) => (<Badge key={i} variant="secondary">{file}</Badge>))}</div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </>
-                  )}
+                    <Card className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setActiveTab("agent")}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2"><Zap className="h-4 w-4 text-violet-500" />Agent Workspace</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">Run commands to clean data, generate reports, and execute pipeline steps.</CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setActiveTab("schema")}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2"><Table className="h-4 w-4 text-blue-500" />Schema Insights</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">Review detected columns, semantics, and query suggestions.</CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setActiveTab("analysis")}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2"><Bot className="h-4 w-4 text-violet-500" />AI Analysis</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">Get dataset quality insights, risks, recommendations, and metrics.</CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setActiveTab("reports")}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4 text-purple-500" />Interactive Reports</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">Explore bar, line, pie, histogram, and heatmap visual reports.</CardContent>
+                    </Card>
+                    <Card className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setActiveTab("query")}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4 text-amber-500" />Query Data</CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">Ask natural language questions and run generated SQL on your warehouse.</CardContent>
+                    </Card>
+                  </div>
+
                   <StatsCards stats={stats} />
                 </>
               )}
@@ -1978,14 +1999,7 @@ export default function OmnixApp() {
                 <>
                   <div className="flex items-center gap-2"><Upload className="h-6 w-6 text-violet-500" /><h1 className="text-2xl font-bold">Upload Data</h1></div>
                   <p className="text-muted-foreground">Upload any CSV, JSON, or Excel file. The system will automatically detect the schema.</p>
-                  <FileUploader onUploadComplete={async (uploadResult) => {
-                    clearWorkspaceContext();
-                    await fetchFiles();
-                    await fetchSchema();
-                    await fetchStats();
-                    await fetchChartData();
-                    await activateUploadedFile(uploadResult);
-                  }} />
+                  <FileUploader onUploadComplete={handleUploadFlow} />
                   <div className="flex items-center gap-2"><Separator className="flex-1" /><span className="text-sm text-muted-foreground">or try sample datasets</span><Separator className="flex-1" /></div>
                   {/* ✅ FIX: Hide samples when file is uploaded */}
                   {!selectedFile && (

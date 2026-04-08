@@ -675,6 +675,70 @@ async def run_agent(request: CommandRequest):
                 return {"status": "error", "message": active_result["error"]}
 
         cmd = (request.command or "").strip().lower()
+        if any(token in cmd for token in ["full pipeline", "run pipeline", "run full", "etl pipeline", "execute pipeline"]):
+            logs: List[str] = ["[Pipeline] Starting full pipeline..."]
+            files: List[str] = []
+            schema = load_user_schema(request.user_id)
+            source_file = schema.get("source_file")
+
+            transform_result = await duckdb_tool.transform(user_id=request.user_id)
+            if "error" in transform_result and source_file:
+                try:
+                    source_abs = resolve_user_relative_path(request.user_id, source_file)
+                    ingest_result = await duckdb_tool.ingest_file(source_abs, user_id=request.user_id)
+                    if "error" in ingest_result:
+                        return {"status": "error", "message": ingest_result["error"], "logs": logs}
+                    logs.append(f"[Ingest] {ingest_result.get('message', 'done')}")
+                    transform_result = await duckdb_tool.transform(user_id=request.user_id)
+                except Exception as ingest_exc:
+                    return {"status": "error", "message": f"Ingest failed: {ingest_exc}", "logs": logs}
+
+            if "error" in transform_result:
+                return {"status": "error", "message": transform_result["error"], "logs": logs}
+
+            logs.append(f"[Transform] {transform_result.get('message', 'done')}")
+            for step in transform_result.get("cleaning_operations", [])[:20]:
+                col = step.get("column", step.get("operation", "step"))
+                strategy = step.get("strategy", step.get("reason", "done"))
+                before = step.get("missing_before")
+                after = step.get("missing_after")
+                if before is not None and after is not None:
+                    logs.append(f"[Clean] {col}: {strategy} ({before} -> {after})")
+                else:
+                    logs.append(f"[Clean] {col}: {strategy}")
+
+            out_file = transform_result.get("output_file")
+            if out_file and os.path.exists(out_file):
+                files.append(_safe_relative(get_user_workspace(request.user_id)["root"], out_file))
+
+            report_message = await report_tool.generate(schema=load_user_schema(request.user_id), user_id=request.user_id)
+            if str(report_message).startswith("Error"):
+                logs.append(f"[Report] ERROR: {report_message}")
+                return {"status": "error", "message": report_message, "logs": logs, "files": files}
+
+            logs.append(f"[Report] {report_message}")
+            schema = load_user_schema(request.user_id)
+            for p in [schema.get("report_file"), schema.get("report_html_file"), schema.get("transformation_log_file")]:
+                if p and os.path.exists(p):
+                    rel = _safe_relative(get_user_workspace(request.user_id)["root"], p)
+                    if rel not in files:
+                        files.append(rel)
+
+            return {
+                "status": "success",
+                "message": "Full pipeline completed successfully.",
+                "logs": logs,
+                "files": files,
+                "files_generated": files,
+                "data": {
+                    "status": "success",
+                    "message": "Full pipeline completed successfully.",
+                    "logs": logs,
+                    "files": files,
+                    "files_generated": files,
+                },
+            }
+
         if any(token in cmd for token in ["clean", "transform", "preprocess"]):
             transform_result = await duckdb_tool.transform(user_id=request.user_id)
             if "error" in transform_result:

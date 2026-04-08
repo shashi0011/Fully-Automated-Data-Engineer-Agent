@@ -26,6 +26,18 @@ class ReportTool:
     """Tool for generating reports - Dataset agnostic."""
 
     @staticmethod
+    def _looks_like_datetime(series: pd.Series) -> bool:
+        non_null = series.dropna()
+        if non_null.empty:
+            return False
+        sample = non_null.astype(str).str.strip().head(min(200, len(non_null)))
+        ratio = sample.str.contains(
+            r"(?:\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}:\d{2}|[A-Za-z]{3,9}\s+\d{1,2})",
+            regex=True,
+        ).mean()
+        return bool(ratio >= 0.6)
+
+    @staticmethod
     def _get_report_filename(schema: Dict[str, Any]) -> str:
         clean_table = schema.get("table_name", "data_clean")
         base = clean_table.replace("_clean", "")
@@ -126,8 +138,20 @@ class ReportTool:
             return f"Error: Table {table_name} not found. Run transformation first."
 
         col_cats = categorize_columns(schema.get("columns", {}))
-        numeric_cols = col_cats["numeric"]
-        category_cols = col_cats["categorical"]
+        schema_numeric_cols = col_cats["numeric"]
+        schema_category_cols = col_cats["categorical"]
+
+        # Prefer actual warehouse column types to avoid SUM/AVG on datetime columns.
+        desc_rows = con.execute(f"DESCRIBE {quoted_table}").fetchall()
+        col_types = {str(r[0]): str(r[1]).upper() for r in desc_rows}
+        numeric_type_tokens = ("INT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC", "REAL", "BIGINT", "SMALLINT", "HUGEINT")
+        numeric_cols = [c for c, t in col_types.items() if any(tok in t for tok in numeric_type_tokens)]
+        if not numeric_cols:
+            numeric_cols = list(schema_numeric_cols)
+
+        category_cols = [c for c in schema_category_cols if c in col_types and c not in numeric_cols]
+        if not category_cols:
+            category_cols = [c for c, t in col_types.items() if c not in numeric_cols and "DATE" not in t and "TIME" not in t]
 
         report_sql = None
         if category_cols and numeric_cols:
@@ -189,7 +213,18 @@ class ReportTool:
             return f"Error: Failed to generate report: {e}"
 
         numeric_df = full_df.select_dtypes(include=["number"])
-        numeric = list(numeric_df.columns)
+        numeric = [c for c in numeric_df.columns if not pd.api.types.is_datetime64_any_dtype(full_df[c])]
+        if not numeric:
+            inferred = []
+            for c in full_df.columns:
+                if self._looks_like_datetime(full_df[c]):
+                    continue
+                coerced = pd.to_numeric(full_df[c], errors="coerce")
+                ratio = float(coerced.notna().sum() / max(full_df[c].notna().sum(), 1))
+                if ratio >= 0.7:
+                    full_df[c] = coerced
+                    inferred.append(c)
+            numeric = inferred
         non_numeric = [c for c in full_df.columns if c not in numeric]
 
         bar = []
@@ -215,7 +250,12 @@ class ReportTool:
                     heatmap.append({"x": str(col), "y": str(row), "value": float(round(corr.loc[row, col], 4))})
 
         for col in full_df.columns:
-            parsed = pd.to_datetime(full_df[col], errors="coerce")
+            if not self._looks_like_datetime(full_df[col]):
+                continue
+            try:
+                parsed = pd.to_datetime(full_df[col], errors="coerce", format="mixed")
+            except TypeError:
+                parsed = pd.to_datetime(full_df[col], errors="coerce")
             if parsed.notna().mean() > 0.7 and numeric:
                 num = numeric[0]
                 tmp = full_df.copy()

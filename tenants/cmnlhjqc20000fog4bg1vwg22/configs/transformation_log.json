@@ -1,62 +1,163 @@
 {
-  "table": "dirty_dataset_clean",
-  "original_count": 100,
-  "row_count": 100,
+  "table": "dirty_50_rows_clean",
+  "original_count": 50,
+  "row_count": 50,
   "rows_removed": 0,
   "steps": [
     {
-      "column": "customer_name",
+      "column": "name",
+      "operation": "llm_preclean",
+      "strategy": "trim",
+      "missing_before": 5,
+      "missing_after": 5,
+      "fill_preview": null
+    },
+    {
+      "column": "name",
       "operation": "missing_value_imputation",
       "strategy": "mode",
-      "missing_before": 26,
+      "missing_before": 5,
       "missing_after": 0,
-      "fill_preview": "Jane Smith"
+      "fill_preview": "Alice"
+    },
+    {
+      "column": "age",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null,parse_numeric",
+      "missing_before": 17,
+      "missing_after": 17,
+      "fill_preview": null
     },
     {
       "column": "age",
       "operation": "missing_value_imputation",
-      "strategy": "mode",
-      "missing_before": 32,
+      "strategy": "mean",
+      "missing_before": 17,
       "missing_after": 0,
-      "fill_preview": "twenty"
+      "fill_preview": "31.303030303030305"
+    },
+    {
+      "column": "gender",
+      "operation": "llm_preclean",
+      "strategy": "trim,lowercase",
+      "missing_before": 8,
+      "missing_after": 8,
+      "fill_preview": null
     },
     {
       "column": "gender",
       "operation": "missing_value_imputation",
       "strategy": "mode",
-      "missing_before": 18,
+      "missing_before": 8,
       "missing_after": 0,
       "fill_preview": "Female"
     },
     {
-      "column": "quantity",
+      "column": "product",
+      "operation": "llm_preclean",
+      "strategy": "trim",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "price",
+      "operation": "llm_preclean",
+      "strategy": "trim,parse_numeric",
+      "missing_before": 8,
+      "missing_after": 8,
+      "fill_preview": null
+    },
+    {
+      "column": "price",
       "operation": "missing_value_imputation",
       "strategy": "mean",
-      "missing_before": 38,
+      "missing_before": 8,
       "missing_after": 0,
-      "fill_preview": "1.9516129032258065"
+      "fill_preview": "23000.0"
+    },
+    {
+      "column": "quantity",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 30,
+      "missing_after": 30,
+      "fill_preview": null
+    },
+    {
+      "column": "quantity",
+      "operation": "missing_value_imputation",
+      "strategy": "numeric_coerce_mean",
+      "missing_before": 30,
+      "missing_after": 0,
+      "fill_preview": "1.3"
+    },
+    {
+      "column": "date",
+      "operation": "llm_preclean",
+      "strategy": "trim,parse_date",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "city",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 12,
+      "missing_after": 12,
+      "fill_preview": null
+    },
+    {
+      "column": "city",
+      "operation": "missing_value_imputation",
+      "strategy": "mode",
+      "missing_before": 12,
+      "missing_after": 0,
+      "fill_preview": "Delhi"
+    },
+    {
+      "column": "payment",
+      "operation": "llm_preclean",
+      "strategy": "trim",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
     }
   ],
   "feature_importance": [
     {
+      "feature": "price",
+      "type": "numeric",
+      "variance": 337714285.714286,
+      "mean_abs_correlation": 0.10213,
+      "importance_score": 236400000.030639
+    },
+    {
       "feature": "order_id",
       "type": "numeric",
-      "variance": 841.666667,
-      "mean_abs_correlation": 0.029977,
-      "importance_score": 589.17566
+      "variance": 212.5,
+      "mean_abs_correlation": 0.085703,
+      "importance_score": 148.775711
     },
     {
-      "feature": "order_date",
-      "type": "categorical",
-      "cardinality_ratio": 0.73,
-      "importance_score": 0.446
-    },
-    {
-      "feature": "quantity",
+      "feature": "age",
       "type": "numeric",
-      "variance": 0.372271,
-      "mean_abs_correlation": 0.029977,
-      "importance_score": 0.269583
+      "variance": 55.162647,
+      "mean_abs_correlation": 0.089968,
+      "importance_score": 38.640843
+    },
+    {
+      "feature": "name",
+      "type": "categorical",
+      "cardinality_ratio": 0.1,
+      "importance_score": 0.16
+    },
+    {
+      "feature": "product",
+      "type": "categorical",
+      "cardinality_ratio": 0.08,
+      "importance_score": 0.148
     },
     {
       "feature": "city",
@@ -65,28 +166,10 @@
       "importance_score": 0.136
     },
     {
-      "feature": "customer_name",
+      "feature": "payment",
       "type": "categorical",
-      "cardinality_ratio": 0.05,
-      "importance_score": 0.13
-    },
-    {
-      "feature": "age",
-      "type": "categorical",
-      "cardinality_ratio": 0.05,
-      "importance_score": 0.13
-    },
-    {
-      "feature": "product",
-      "type": "categorical",
-      "cardinality_ratio": 0.05,
-      "importance_score": 0.13
-    },
-    {
-      "feature": "price",
-      "type": "categorical",
-      "cardinality_ratio": 0.05,
-      "importance_score": 0.13
+      "cardinality_ratio": 0.06,
+      "importance_score": 0.136
     },
     {
       "feature": "gender",
@@ -95,10 +178,11 @@
       "importance_score": 0.124
     },
     {
-      "feature": "payment_method",
-      "type": "categorical",
-      "cardinality_ratio": 0.03,
-      "importance_score": 0.118
+      "feature": "quantity",
+      "type": "numeric",
+      "variance": 0.085714,
+      "mean_abs_correlation": 0.108987,
+      "importance_score": 0.092696
     }
   ]
 }

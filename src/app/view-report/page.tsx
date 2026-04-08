@@ -132,38 +132,38 @@ export default function ViewReportPage() {
             <CardTitle className="flex items-center gap-2"><Filter className="h-4 w-4" />Filters, Sorting, Drill-down</CardTitle>
             <CardDescription>Apply filters and click chart segments to inspect details.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-7">
+          <CardContent className="grid gap-2 md:grid-cols-3 xl:grid-cols-7">
             <Select value={filterColumn || "none"} onValueChange={(v) => setFilterColumn(v === "none" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Filter column" /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Filter column" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No filter</SelectItem>
                 {tableColumns.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Input placeholder="Filter value (e.g. >50)" value={filterValue} onChange={(e) => setFilterValue(e.target.value)} />
+            <Input className="h-9" placeholder="Filter value (e.g. >50)" value={filterValue} onChange={(e) => setFilterValue(e.target.value)} />
             <Select value={sortBy || "none"} onValueChange={(v) => setSortBy(v === "none" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Sort by" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No sorting</SelectItem>
                 {tableColumns.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={sortDir} onValueChange={(v: "asc" | "desc") => setSortDir(v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="asc">Ascending</SelectItem>
                 <SelectItem value="desc">Descending</SelectItem>
               </SelectContent>
             </Select>
             <Select value={barCategory || "none"} onValueChange={(v) => setBarCategory(v === "none" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Bar category" /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Bar category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Auto category</SelectItem>
                 {barCategoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={barMetric || "__count__"} onValueChange={(v) => setBarMetric(v)}>
-              <SelectTrigger><SelectValue placeholder="Bar metric" /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Bar metric" /></SelectTrigger>
               <SelectContent>
                 {barMetricOptions.map((m) => (
                   <SelectItem key={m} value={m}>
@@ -172,7 +172,7 @@ export default function ViewReportPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button onClick={loadReport}>Apply</Button>
+            <Button className="h-9" onClick={loadReport}>Apply</Button>
           </CardContent>
         </Card>
 

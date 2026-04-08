@@ -1,41 +1,71 @@
 {
-  "table": "sample_tableau_dataset_clean",
-  "original_count": 200,
-  "row_count": 200,
+  "table": "dirty_dataset_clean",
+  "original_count": 100,
+  "row_count": 100,
   "rows_removed": 0,
   "steps": [],
   "feature_importance": [
     {
-      "feature": "Sales",
+      "feature": "order_id",
       "type": "numeric",
-      "variance": 1828745.123593,
-      "mean_abs_correlation": 0.065905,
-      "importance_score": 1280121.606287
+      "variance": 841.666667,
+      "mean_abs_correlation": 0.029977,
+      "importance_score": 589.17566
     },
     {
-      "feature": "Profit",
+      "feature": "order_date",
+      "type": "categorical",
+      "cardinality_ratio": 0.73,
+      "importance_score": 0.446
+    },
+    {
+      "feature": "quantity",
       "type": "numeric",
-      "variance": 262173.968819,
-      "mean_abs_correlation": 0.065905,
-      "importance_score": 183521.797945
+      "variance": 0.372271,
+      "mean_abs_correlation": 0.029977,
+      "importance_score": 0.269583
     },
     {
-      "feature": "Date",
+      "feature": "city",
       "type": "categorical",
-      "cardinality_ratio": 1.0,
-      "importance_score": 0.5
+      "cardinality_ratio": 0.06,
+      "importance_score": 0.136
     },
     {
-      "feature": "Region",
+      "feature": "customer_name",
       "type": "categorical",
-      "cardinality_ratio": 0.02,
-      "importance_score": 0.112
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
     },
     {
-      "feature": "Category",
+      "feature": "age",
       "type": "categorical",
-      "cardinality_ratio": 0.015,
-      "importance_score": 0.109
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
+    },
+    {
+      "feature": "product",
+      "type": "categorical",
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
+    },
+    {
+      "feature": "price",
+      "type": "categorical",
+      "cardinality_ratio": 0.05,
+      "importance_score": 0.13
+    },
+    {
+      "feature": "gender",
+      "type": "categorical",
+      "cardinality_ratio": 0.04,
+      "importance_score": 0.124
+    },
+    {
+      "feature": "payment_method",
+      "type": "categorical",
+      "cardinality_ratio": 0.03,
+      "importance_score": 0.118
     }
   ]
 }

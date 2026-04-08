@@ -5,6 +5,7 @@ Data warehouse operations using DuckDB - Works with ANY dataset
 
 import json
 import os
+import re
 from typing import Any, Dict, List
 
 import duckdb
@@ -38,6 +39,18 @@ class DuckDBTool:
         self.current_data_file = file_path
         return f"Data file set to: {file_path}"
 
+    @staticmethod
+    def _read_csv_robust(file_path: str) -> pd.DataFrame:
+        """Read CSV with fallback when row widths are inconsistent."""
+        try:
+            return pd.read_csv(file_path)
+        except (pd.errors.ParserError, UnicodeDecodeError, ValueError):
+            return pd.read_csv(
+                file_path,
+                engine="python",
+                on_bad_lines="skip",
+            )
+
     async def ingest_file(self, file_path: str = None, table_name: str = None, user_id: str = None) -> Dict[str, Any]:
         if file_path is None:
             file_path = self.current_data_file
@@ -65,7 +78,7 @@ class DuckDBTool:
 
         try:
             if file_path.endswith(".csv"):
-                df = pd.read_csv(file_path)
+                df = self._read_csv_robust(file_path)
             elif file_path.endswith(".json"):
                 df = pd.read_json(file_path)
             else:
@@ -185,6 +198,40 @@ class DuckDBTool:
 
         return series.map(convert_token)
 
+    @staticmethod
+    def _normalize_gender_like(series: pd.Series) -> pd.Series:
+        mapping = {
+            "f": "Female",
+            "female": "Female",
+            "m": "Male",
+            "male": "Male",
+            "other": "Other",
+            "non-binary": "Other",
+            "nonbinary": "Other",
+            "nb": "Other",
+        }
+
+        def norm(v: Any) -> Any:
+            if not isinstance(v, str):
+                return v
+            key = v.strip().lower()
+            return mapping.get(key, v)
+
+        return series.map(norm)
+
+    @staticmethod
+    def _apply_string_op(series: pd.Series, op: str) -> pd.Series:
+        s = series.copy()
+        mask = s.notna()
+        if op == "trim":
+            s.loc[mask] = s.loc[mask].astype(str).str.strip()
+        elif op == "lowercase":
+            s.loc[mask] = s.loc[mask].astype(str).str.lower()
+        elif op == "normalize_empty_to_null":
+            s.loc[mask] = s.loc[mask].astype(str).str.strip()
+            s = s.replace("", pd.NA)
+        return s
+
     async def transform(self, user_id: str = None) -> Dict[str, Any]:
         """Smart cleaning with minimal row removal + transformation log."""
         schema = load_user_schema(user_id)
@@ -209,6 +256,32 @@ class DuckDBTool:
 
         original_count = len(df)
         logs: List[Dict[str, Any]] = []
+        llm_cleaning_used = False
+        llm_plan_notes: List[str] = []
+        rules_by_col: Dict[str, List[str]] = {}
+        required_cols: List[str] = []
+
+        try:
+            from .llm_agent import LLMAgent
+            llm = LLMAgent()
+            llm_plan = await llm.generate_cleaning_plan(
+                schema_info=schema,
+                sample_data=df.head(20).fillna("").to_dict("records"),
+                session_id=user_id or "default",
+            )
+            llm_cleaning_used = bool(llm_plan.get("llm_used", False))
+            llm_plan_notes = [str(x) for x in llm_plan.get("notes", [])[:10]]
+            for rule in llm_plan.get("column_rules", []):
+                col = rule.get("column")
+                ops = rule.get("operations", [])
+                if isinstance(col, str) and col in df.columns and isinstance(ops, list):
+                    clean_ops = [str(op) for op in ops if isinstance(op, str)]
+                    if clean_ops:
+                        rules_by_col[col] = clean_ops
+                        if "drop_row_if_null" in clean_ops:
+                            required_cols.append(col)
+        except Exception:
+            llm_cleaning_used = False
         feature_importance = self._feature_importance(df)[:25]
         importance_map = {x.get("feature"): float(x.get("importance_score", 0.0)) for x in feature_importance}
         importance_values = sorted(v for v in importance_map.values() if isinstance(v, (float, int)))
@@ -216,6 +289,42 @@ class DuckDBTool:
 
         for col in df.columns:
             series = df[col]
+            schema_col = schema.get("columns", {}).get(col, {})
+            semantic = str(schema_col.get("semantic", "")).lower()
+
+            # Apply LLM suggested pre-clean operations per column.
+            ops = rules_by_col.get(col, [])
+            if ops:
+                for op in ops:
+                    if op in {"trim", "lowercase", "normalize_empty_to_null"}:
+                        series = self._apply_string_op(series, op)
+                    elif op == "parse_numeric":
+                        numeric_text = self._normalize_textual_numbers(series).astype(str)
+                        numeric_text = numeric_text.str.replace(r"[^0-9+.,-]", "", regex=True)
+                        numeric_text = numeric_text.replace("", pd.NA)
+                        series = pd.to_numeric(numeric_text.str.replace(",", "", regex=False), errors="coerce")
+                    elif op == "parse_date":
+                        try:
+                            series = pd.to_datetime(series, errors="coerce", format="mixed")
+                        except TypeError:
+                            series = pd.to_datetime(series, errors="coerce")
+                df[col] = series
+                logs.append(
+                    {
+                        "column": col,
+                        "operation": "llm_preclean",
+                        "strategy": ",".join(ops),
+                        "missing_before": int(df[col].isna().sum()),
+                        "missing_after": int(df[col].isna().sum()),
+                        "fill_preview": None,
+                    }
+                )
+
+            # Canonicalize common categorical aliases.
+            if semantic in {"category", "person"} and any(x in col.lower() for x in ["gender", "sex"]):
+                df[col] = self._normalize_gender_like(df[col])
+                series = df[col]
+
             missing_before = int(series.isna().sum())
             if missing_before == 0:
                 continue
@@ -252,16 +361,19 @@ class DuckDBTool:
                 strategy = "forward_backward_fill"
             else:
                 non_null_count = int(series.notna().sum())
-                schema_col = schema.get("columns", {}).get(col, {})
-                semantic = str(schema_col.get("semantic", "")).lower()
-                normalized_series = series
-                if semantic in {"money", "count", "score", "percentage", "numeric", "number", "age"} or any(
+                should_be_numeric = semantic in {"money", "count", "score", "percentage", "numeric", "number", "age"} or any(
                     token in col.lower() for token in ["age", "count", "qty", "quantity", "price", "amount", "score", "number"]
-                ):
+                )
+                normalized_series = series
+                if should_be_numeric:
                     normalized_series = self._normalize_textual_numbers(series)
-                coerced_num = pd.to_numeric(normalized_series, errors="coerce")
+                    cleaned = normalized_series.astype(str).str.replace(r"[^0-9+.,-]", "", regex=True).replace("", pd.NA)
+                    coerced_num = pd.to_numeric(cleaned.str.replace(",", "", regex=False), errors="coerce")
+                else:
+                    coerced_num = pd.to_numeric(normalized_series, errors="coerce")
                 numeric_ratio = float(coerced_num.notna().sum() / max(non_null_count, 1))
-                if numeric_ratio >= 0.85 and non_null_count > 0:
+                numeric_threshold = 0.2 if should_be_numeric else 0.85
+                if numeric_ratio >= numeric_threshold and non_null_count > 0:
                     skewness = float(coerced_num.dropna().skew()) if coerced_num.dropna().shape[0] > 2 else 0.0
                     if abs(skewness) > 1:
                         fill_value = coerced_num.median()
@@ -296,6 +408,26 @@ class DuckDBTool:
                     df[col] = parsed_dt.ffill().bfill()
                     strategy = "forward_backward_fill_datetime"
                 else:
+                    if should_be_numeric:
+                        df[col] = coerced_num
+                        if coerced_num.notna().sum() > 0:
+                            fill_value = coerced_num.median()
+                            df[col] = df[col].fillna(fill_value)
+                            strategy = "numeric_intent_median_fallback"
+                        else:
+                            strategy = "numeric_intent_skip_no_valid_values"
+                        missing_after = int(df[col].isna().sum())
+                        logs.append(
+                            {
+                                "column": col,
+                                "operation": "missing_value_imputation",
+                                "strategy": strategy,
+                                "missing_before": missing_before,
+                                "missing_after": missing_after,
+                                "fill_preview": None if fill_value is None else str(fill_value)[:80],
+                            }
+                        )
+                        continue
                     mode = series.mode(dropna=True)
                     if not mode.empty and str(mode.iloc[0]).strip() != "":
                         fill_value = mode.iloc[0]
@@ -328,6 +460,19 @@ class DuckDBTool:
                     "rows_removed": removed_all_null,
                 }
             )
+
+        if required_cols:
+            keep_mask = df[required_cols].notna().all(axis=1)
+            removed_required = int((~keep_mask).sum())
+            if removed_required > 0:
+                df = df.loc[keep_mask].copy()
+                logs.append(
+                    {
+                        "operation": "row_removal",
+                        "reason": "llm_required_columns_null",
+                        "rows_removed": removed_required,
+                    }
+                )
 
         pre_dedup = len(df)
         df = df.drop_duplicates().copy()
@@ -373,6 +518,9 @@ class DuckDBTool:
         schema["transformation_log"] = logs
         schema["transformation_log_file"] = transform_log_path
         schema["feature_importance"] = feature_importance
+        schema["llm_cleaning_used"] = llm_cleaning_used
+        schema["cleaning_plan_notes"] = llm_plan_notes
+        schema["cleaning_rules_applied"] = rules_by_col
         save_user_schema(user_id, schema)
 
         return {
@@ -384,8 +532,8 @@ class DuckDBTool:
             "rows_removed": rows_removed,
             "cleaning_operations": logs,
             "feature_importance": feature_importance,
-            "llm_cleaning_used": False,
-            "cleaning_plan_notes": [],
+            "llm_cleaning_used": llm_cleaning_used,
+            "cleaning_plan_notes": llm_plan_notes,
         }
 
     async def query(self, sql: str, user_id: str = None) -> Dict[str, Any]:

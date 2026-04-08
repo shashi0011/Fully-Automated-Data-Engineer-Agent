@@ -1,64 +1,46 @@
 version: 2
 
 models:
-  - name: stg_dirty_dataset_clean
-    description: "Staging model that cleans and prepares the dirty_dataset_clean for further analysis."
+  - name: stg_dirty_sales
+    description: "Staged sales data with cleaned and validated columns."
     columns:
       - name: order_id
         description: "Unique identifier for each order."
-        tests:
-          - not_null
-      - name: customer_name
+      - name: name
         description: "Name of the customer."
-        tests:
-          - not_null
       - name: age
-        description: "Age of the customer."
+        description: "Age of the customer (in years)."
       - name: gender
         description: "Gender of the customer."
       - name: product
-        description: "Product purchased by the customer."
+        description: "Product purchased."
       - name: price
         description: "Price of the product."
-        tests:
-          - not_null
-          - accepted_values:
-              values: ["0", "30000", "15000"]  # Example values
       - name: quantity
         description: "Quantity of the product purchased."
-        tests:
-          - not_null
-      - name: order_date
-        description: "Date when the order was placed."
-        tests:
-          - not_null
+      - name: date
+        description: "Date of the order." 
       - name: city
-        description: "City where the customer resides."
-      - name: payment_method
-        description: "Payment method used for the purchase."
+        description: "City where the order was made."
+      - name: payment
+        description: "Payment method used for the order."
 
-  - name: int_dirty_dataset_clean
-    description: "Intermediate model that aggregates total sales by product and city."
+  - name: int_dirty_sales
+    description: "Intermediate model calculating total sales per order."
     columns:
-      - name: product
-        description: "Product purchased."
-      - name: city
-        description: "City of the customer."
-      - name: total_sales
-        description: "Total sales generated from the product in the given city."
-      - name: total_orders
-        description: "Total number of orders for the product in the given city."
-      - name: total_customers
-        description: "Total unique customers who purchased the product."
+      - name: order_id
+        description: "Unique identifier for each order."
+      - name: total_sale
+        description: "Total sale amount for each order."
 
   - name: mart_sales_summary
-    description: "Mart model providing a summary view of total sales by city and payment method."
+    description: "Summary of sales data by city."
     columns:
       - name: city
-        description: "City where the customers are located."
-      - name: payment_method
-        description: "Payment method used for purchases."
-      - name: total_sales
-        description: "Total sales amount for the city and payment method."
+        description: "City where the orders were made."
       - name: total_orders
-        description: "Total number of orders processed for the city and payment method." 
+        description: "Total number of unique orders per city."
+      - name: total_revenue
+        description: "Total revenue generated per city."
+      - name: average_order_value
+        description: "Average revenue per order in each city."

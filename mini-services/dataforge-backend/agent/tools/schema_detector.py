@@ -30,6 +30,19 @@ class SchemaDetector:
     def __init__(self):
         pass
 
+    @staticmethod
+    def _read_csv_robust(file_path: str, nrows: Optional[int] = None) -> pd.DataFrame:
+        """Read CSV with fallback when row widths are inconsistent."""
+        try:
+            return pd.read_csv(file_path, nrows=nrows)
+        except (pd.errors.ParserError, UnicodeDecodeError, ValueError):
+            return pd.read_csv(
+                file_path,
+                nrows=nrows,
+                engine="python",
+                on_bad_lines="skip",
+            )
+
     # ──────────────────────────────────────────────────────────────────
     # Column type detection (pure heuristic, no network calls)
     # ──────────────────────────────────────────────────────────────────
@@ -304,7 +317,7 @@ class SchemaDetector:
 
         try:
             if file_path.endswith('.csv'):
-                df = pd.read_csv(file_path, nrows=2000)
+                df = self._read_csv_robust(file_path, nrows=2000)
             elif file_path.endswith('.json'):
                 df = pd.read_json(file_path)
             else:

@@ -1,121 +1,179 @@
 {
-  "source_file": "R:\\New folder (2)\\my-project\\data\\clean\\messy_dataset_clean.csv",
-  "table_name": "messy_dataset_clean_clean",
-  "dataset_type": "hr",
-  "dataset_description": "Hr dataset with 4 rows and 6 columns (2 numeric, 1 categorical, 1 date/time, 2 text). Key columns: \u2018Name\u2019, \u2018Age\u2019, \u2018Email\u2019, \u2018Salary\u2019, \u2018Join_Date\u2019, \u2018and 1 more\u2019.",
-  "row_count": 4,
-  "column_count": 6,
+  "source_file": "R:\\New folder (2)\\my-project\\data\\clean\\dirty_dataset_clean_clean.csv",
+  "table_name": "dirty_dataset_clean_clean_clean",
+  "dataset_type": "sales",
+  "dataset_description": "Sales dataset with 11 rows and 10 columns (3 numeric, 1 date/time, 5 text). Key columns: \u2018order_id\u2019, \u2018customer_name\u2019, \u2018age\u2019, \u2018gender\u2019, \u2018product\u2019, \u2018and 5 more\u2019.",
+  "row_count": 11,
+  "column_count": 10,
   "columns": {
-    "Name": {
+    "order_id": {
+      "type": "float64",
+      "semantic": "id",
+      "nullable": false,
+      "sample_values": [
+        1099.0,
+        1068.0,
+        1040.0
+      ],
+      "unique_count": 11,
+      "total_count": 11,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "customer_name": {
       "type": "object",
       "semantic": "person",
-      "nullable": true,
+      "nullable": false,
       "sample_values": [
-        "alice",
-        "bob",
-        "alice"
+        "Ravi Kumar",
+        "Ravi Kumar",
+        "Ravi Kumar"
       ],
-      "unique_count": 2,
-      "total_count": 3,
-      "null_count": 1,
-      "null_pct": 25.0
+      "unique_count": 5,
+      "total_count": 11,
+      "null_count": 0,
+      "null_pct": 0.0
     },
-    "Age": {
+    "age": {
       "type": "float64",
       "semantic": "count",
       "nullable": false,
       "sample_values": [
         25.0,
         30.0,
-        22.0
+        30.0
       ],
       "unique_count": 3,
-      "total_count": 4,
+      "total_count": 11,
       "null_count": 0,
       "null_pct": 0.0
     },
-    "Email": {
+    "gender": {
       "type": "object",
-      "semantic": "email",
+      "semantic": "generic",
+      "nullable": true,
+      "sample_values": [
+        "female",
+        "m",
+        "female"
+      ],
+      "unique_count": 3,
+      "total_count": 9,
+      "null_count": 2,
+      "null_pct": 18.2
+    },
+    "product": {
+      "type": "object",
+      "semantic": "generic",
       "nullable": false,
       "sample_values": [
-        "alice@example.com",
-        "bob[at]mail.com",
-        "charlie@mail.com"
+        "Tablet",
+        "Phone",
+        "Tablet"
       ],
-      "unique_count": 4,
-      "total_count": 4,
+      "unique_count": 5,
+      "total_count": 11,
       "null_count": 0,
       "null_pct": 0.0
     },
-    "Salary": {
+    "price": {
       "type": "float64",
       "semantic": "money",
       "nullable": false,
       "sample_values": [
-        50000.0,
-        60000.0,
-        70000.0
+        15000.0,
+        2000.0,
+        2000.0
       ],
-      "unique_count": 3,
-      "total_count": 4,
+      "unique_count": 4,
+      "total_count": 11,
       "null_count": 0,
       "null_pct": 0.0
     },
-    "Join_Date": {
-      "type": "datetime",
-      "semantic": "datetime",
-      "nullable": true,
-      "sample_values": [
-        "2022-01-15",
-        "2022-01-15"
-      ],
-      "unique_count": 1,
-      "total_count": 2,
-      "null_count": 2,
-      "null_pct": 50.0
-    },
-    "Department": {
-      "type": "object",
-      "semantic": "category",
+    "quantity": {
+      "type": "float64",
+      "semantic": "count",
       "nullable": false,
       "sample_values": [
-        "HR",
-        "IT",
-        "IT"
+        1.0,
+        3.0,
+        2.0
       ],
-      "unique_count": 2,
-      "total_count": 4,
+      "unique_count": 3,
+      "total_count": 11,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "order_date": {
+      "type": "datetime",
+      "semantic": "datetime",
+      "nullable": false,
+      "sample_values": [
+        "2024-02-12",
+        "2024-01-31",
+        "2024-02-29"
+      ],
+      "unique_count": 9,
+      "total_count": 11,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "city": {
+      "type": "object",
+      "semantic": "location",
+      "nullable": false,
+      "sample_values": [
+        "Chennai",
+        "Kolkata",
+        "Unknown"
+      ],
+      "unique_count": 6,
+      "total_count": 11,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "payment_method": {
+      "type": "object",
+      "semantic": "generic",
+      "nullable": false,
+      "sample_values": [
+        "Cash",
+        "Cash",
+        "Cash"
+      ],
+      "unique_count": 3,
+      "total_count": 11,
       "null_count": 0,
       "null_pct": 0.0
     }
   },
   "column_summary": {
     "numeric": [
-      "Age",
-      "Salary"
+      "age",
+      "price",
+      "quantity"
     ],
-    "categorical": [
-      "Department"
-    ],
+    "categorical": [],
     "date": [
-      "Join_Date"
+      "order_date"
     ],
     "text": [
-      "Name",
-      "Email"
+      "customer_name",
+      "gender",
+      "product",
+      "city",
+      "payment_method"
     ],
-    "id": []
+    "id": [
+      "order_id"
+    ]
   },
   "suggested_queries": [
-    "Show top 10 by Age",
-    "Total Age by Department",
-    "Average Age",
-    "Distribution of Department",
-    "Age trend over time",
-    "How many records per Department"
+    "Show top 10 by age",
+    "Average age",
+    "age trend over time"
   ],
-  "detected_at": "2026-04-07T19:31:05.413022",
+  "detected_at": "2026-04-08T12:07:19.357634",
   "detection_method": "heuristic",
-  "raw_table": "messy_dataset_clean_raw"
+  "raw_table": "dirty_dataset_clean_clean_raw"
 }

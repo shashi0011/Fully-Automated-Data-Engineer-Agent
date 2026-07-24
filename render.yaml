@@ -1,0 +1,19 @@
+services:
+  # 1. FastAPI Backend Service
+  - type: web
+    name: omnix-backend
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: Dockerfile.backend
+    envVars:
+      - key: PORT
+        value: 8000
+    plan: free
+
+  # 2. Next.js Frontend Service
+  - type: web
+    name: omnix-frontend
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: Dockerfile.frontend
+    plan: free

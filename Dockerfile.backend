@@ -1,0 +1,29 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install system deps (important for dbt)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY mini-services/dataforge-backend/requirements.txt .
+
+# Install Python deps
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install dbt (important for your project)
+RUN pip install dbt-core dbt-duckdb
+
+# Copy backend code
+COPY mini-services/dataforge-backend/ .
+
+# Expose dynamic port
+EXPOSE 8000
+
+# Start FastAPI
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $PORT"]

@@ -1,0 +1,146 @@
+{
+  "source_file": "/tmp/dftest/messy_sales.csv",
+  "table_name": "messy_sales_clean",
+  "dataset_type": "sales",
+  "dataset_description": "Sales dataset with 10 rows and 8 columns (1 categorical, 6 text). Key columns: \u2018customer_id\u2019, \u2018customer_name\u2019, \u2018city\u2019, \u2018age\u2019, \u2018plan\u2019, \u2018and 3 more\u2019.",
+  "row_count": 10,
+  "column_count": 8,
+  "columns": {
+    "customer_id": {
+      "type": "int64",
+      "semantic": "id",
+      "nullable": false,
+      "sample_values": [
+        1,
+        2,
+        3
+      ],
+      "unique_count": 10,
+      "total_count": 10,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "customer_name": {
+      "type": "object",
+      "semantic": "person",
+      "nullable": true,
+      "sample_values": [
+        "John Smith",
+        "  jane doe  ",
+        "Bob Lee"
+      ],
+      "unique_count": 7,
+      "total_count": 9,
+      "null_count": 1,
+      "null_pct": 10.0
+    },
+    "city": {
+      "type": "object",
+      "semantic": "location",
+      "nullable": true,
+      "sample_values": [
+        "New York",
+        "new york",
+        "NEW YORK "
+      ],
+      "unique_count": 7,
+      "total_count": 9,
+      "null_count": 1,
+      "null_pct": 10.0
+    },
+    "age": {
+      "type": "object",
+      "semantic": "generic",
+      "nullable": true,
+      "sample_values": [
+        "25",
+        "thirty",
+        "45"
+      ],
+      "unique_count": 8,
+      "total_count": 8,
+      "null_count": 2,
+      "null_pct": 20.0
+    },
+    "plan": {
+      "type": "object",
+      "semantic": "category",
+      "nullable": false,
+      "sample_values": [
+        "Pro",
+        "Basic",
+        "pro"
+      ],
+      "unique_count": 4,
+      "total_count": 10,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "revenue": {
+      "type": "object",
+      "semantic": "money",
+      "nullable": true,
+      "sample_values": [
+        "1200.50",
+        "$800.00",
+        "950"
+      ],
+      "unique_count": 7,
+      "total_count": 9,
+      "null_count": 1,
+      "null_pct": 10.0
+    },
+    "signup_date": {
+      "type": "object",
+      "semantic": "datetime",
+      "nullable": false,
+      "sample_values": [
+        "2024-01-15",
+        "2024-02-20",
+        "15/03/2024"
+      ],
+      "unique_count": 8,
+      "total_count": 10,
+      "null_count": 0,
+      "null_pct": 0.0
+    },
+    "notes": {
+      "type": "object",
+      "semantic": "text",
+      "nullable": true,
+      "sample_values": [
+        "Good",
+        "Needs follow up",
+        "VIP"
+      ],
+      "unique_count": 4,
+      "total_count": 4,
+      "null_count": 6,
+      "null_pct": 60.0
+    }
+  },
+  "column_summary": {
+    "numeric": [],
+    "categorical": [
+      "plan"
+    ],
+    "date": [],
+    "text": [
+      "customer_name",
+      "city",
+      "age",
+      "revenue",
+      "signup_date",
+      "notes"
+    ],
+    "id": [
+      "customer_id"
+    ]
+  },
+  "suggested_queries": [
+    "Distribution of plan",
+    "How many records per plan"
+  ],
+  "detected_at": "2026-07-24T08:23:40.694155",
+  "detection_method": "heuristic"
+}

@@ -1,0 +1,54 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: dataforge-backend
+    env_file:
+      - .env.production
+    environment:
+      DATAFORGE_BASE_PATH: /app
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      AIRBYTE_API_URL: ${AIRBYTE_API_URL:-http://airbyte:8000}
+      AIRBYTE_API_TOKEN: ${AIRBYTE_API_TOKEN:-}
+      QUERY_TIMEOUT: ${QUERY_TIMEOUT:-30}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+      - ./warehouse:/app/warehouse
+      - ./reports:/app/reports
+      - ./pipelines:/app/pipelines
+      - ./dbt_project:/app/dbt_project
+      - ./tenants:/app/tenants
+      - ./upload:/app/upload
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: dataforge-frontend
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-file:./db/custom.db}
+      JWT_SECRET: ${JWT_SECRET}
+      BACKEND_URL: http://backend:3001
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./db:/app/db
+      - ./data:/app/data
+      - ./warehouse:/app/warehouse
+      - ./reports:/app/reports
+      - ./pipelines:/app/pipelines
+      - ./dbt_project:/app/dbt_project
+      - ./tenants:/app/tenants
+      - ./upload:/app/upload
+    restart: unless-stopped

@@ -1,0 +1,204 @@
+{
+  "table": "data1_clean",
+  "original_count": 25,
+  "row_count": 25,
+  "rows_removed": 0,
+  "steps": [
+    {
+      "column": "patient_id",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null,drop_row_if_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "patient_name",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "age",
+      "operation": "llm_preclean",
+      "strategy": "normalize_empty_to_null,parse_numeric",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "gender",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "diagnosis",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "treatment",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "medication",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 1,
+      "missing_after": 1,
+      "fill_preview": null
+    },
+    {
+      "column": "medication",
+      "operation": "missing_value_imputation",
+      "strategy": "mode",
+      "missing_before": 1,
+      "missing_after": 0,
+      "fill_preview": "Aspirin"
+    },
+    {
+      "column": "doctor_name",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "department",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "hospital",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "admission_date",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null,parse_date",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "discharge_date",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null,parse_date",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "treatment_cost",
+      "operation": "llm_preclean",
+      "strategy": "normalize_empty_to_null,parse_numeric",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    },
+    {
+      "column": "recovery_status",
+      "operation": "llm_preclean",
+      "strategy": "trim,normalize_empty_to_null",
+      "missing_before": 0,
+      "missing_after": 0,
+      "fill_preview": null
+    }
+  ],
+  "feature_importance": [
+    {
+      "feature": "treatment_cost",
+      "type": "numeric",
+      "variance": 189412233.333333,
+      "mean_abs_correlation": 0.520941,
+      "importance_score": 132588563.489616
+    },
+    {
+      "feature": "age",
+      "type": "numeric",
+      "variance": 189.673333,
+      "mean_abs_correlation": 0.520941,
+      "importance_score": 132.927616
+    },
+    {
+      "feature": "patient_id",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "patient_name",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "diagnosis",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "treatment",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "doctor_name",
+      "type": "categorical",
+      "cardinality_ratio": 1.0,
+      "importance_score": 0.5
+    },
+    {
+      "feature": "medication",
+      "type": "categorical",
+      "cardinality_ratio": 0.92,
+      "importance_score": 0.484
+    },
+    {
+      "feature": "hospital",
+      "type": "categorical",
+      "cardinality_ratio": 0.6,
+      "importance_score": 0.42
+    },
+    {
+      "feature": "department",
+      "type": "categorical",
+      "cardinality_ratio": 0.48,
+      "importance_score": 0.388
+    },
+    {
+      "feature": "recovery_status",
+      "type": "categorical",
+      "cardinality_ratio": 0.16,
+      "importance_score": 0.196
+    },
+    {
+      "feature": "gender",
+      "type": "categorical",
+      "cardinality_ratio": 0.08,
+      "importance_score": 0.148
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+# ---- Dependencies ----
+FROM node:20-bookworm-slim AS deps
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# ---- Build ----
+FROM node:20-bookworm-slim AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+# ---- Runtime ----
+FROM node:20-bookworm-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Render production network configurations
+ENV PORT=10000
+ENV HOSTNAME="0.0.0.0"
+
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/prisma ./prisma
+
+# Shared state directories (mounted as volumes in production)
+RUN mkdir -p /app/db /app/data /app/warehouse /app/reports /app/pipelines /app/dbt_project /app/tenants /app/upload
+
+# Expose Render's target routing port
+EXPOSE 10000
+
+# FIX: Force Prisma v6 and execute using an evaluation shell to cleanly push tables before booting Next.js
+CMD ["/bin/sh", "-c", "npx prisma@6 db push && node server.js"]

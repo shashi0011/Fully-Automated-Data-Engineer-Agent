@@ -16,4 +16,8 @@ services:
     runtime: docker
     dockerContext: .
     dockerfilePath: Dockerfile.frontend
+    envVars:
+      - key: BACKEND_URL
+        value: https://omnix-backend-v54u.onrender.com
+        sync: false
     plan: free

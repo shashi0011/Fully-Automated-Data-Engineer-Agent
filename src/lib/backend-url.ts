@@ -1,4 +1,4 @@
-export const BACKEND_URL =
+export const BACKEND_URL ="https://omnix-backend-v54u.onrender.com/health"
   process.env.BACKEND_URL?.replace(/\/+$/, "") || "http://localhost:3001";
 
 /**
